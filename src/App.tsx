@@ -9,6 +9,9 @@ import Dashboard from "./components/Dashboard";
 import InvoiceManagement from "./components/InvoiceManagement";
 import ClientManagement from "./components/ClientManagement";
 import Reports from "./components/Reports";
+import LoginScreen from "./pages/LoginScreen";
+import RegisterScreen from "./pages/RegisterScreen";
+import PasswordResetScreen from "./pages/PasswordResetScreen";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -19,16 +22,25 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/invoices" element={<InvoiceManagement />} />
-            <Route path="/clients" element={<ClientManagement />} />
-            <Route path="/reports" element={<Reports />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Layout>
+        <Routes>
+          {/* Authentication Routes */}
+          <Route path="/login" element={<LoginScreen />} />
+          <Route path="/register" element={<RegisterScreen />} />
+          <Route path="/forgot-password" element={<PasswordResetScreen />} />
+          
+          {/* Protected Routes with Layout */}
+          <Route path="/*" element={
+            <Layout>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/invoices" element={<InvoiceManagement />} />
+                <Route path="/clients" element={<ClientManagement />} />
+                <Route path="/reports" element={<Reports />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Layout>
+          } />
+        </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

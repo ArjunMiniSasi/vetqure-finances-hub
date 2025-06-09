@@ -1,9 +1,11 @@
 
 import React, { useState } from 'react';
 import { Plus, Search, Filter, Eye, Edit, Send } from 'lucide-react';
+import AddInvoiceModal from './modals/AddInvoiceModal';
 
 const InvoiceManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const invoices = [
     {
@@ -55,6 +57,11 @@ const InvoiceManagement: React.FC = () => {
     }
   };
 
+  const handleSaveInvoice = (invoiceData: any) => {
+    console.log('Saving invoice:', invoiceData);
+    // TODO: Implement Firestore save
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -63,7 +70,10 @@ const InvoiceManagement: React.FC = () => {
           <h1 className="text-3xl font-semibold text-gray-900 mb-2">Invoice Management</h1>
           <p className="text-gray-600">Create, send, and track your invoices</p>
         </div>
-        <button className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-xl font-medium hover:shadow-lg hover:shadow-blue-500/25 transition-all duration-200 flex items-center space-x-2">
+        <button 
+          onClick={() => setIsAddModalOpen(true)}
+          className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-xl font-medium hover:shadow-lg hover:shadow-blue-500/25 transition-all duration-200 flex items-center space-x-2"
+        >
           <Plus className="w-5 h-5" />
           <span>Create Invoice</span>
         </button>
@@ -134,6 +144,12 @@ const InvoiceManagement: React.FC = () => {
           </table>
         </div>
       </div>
+
+      <AddInvoiceModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSave={handleSaveInvoice}
+      />
     </div>
   );
 };

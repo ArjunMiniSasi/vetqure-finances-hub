@@ -1,9 +1,11 @@
 
 import React, { useState } from 'react';
 import { Plus, Search, Mail, Phone, MapPin } from 'lucide-react';
+import AddClientModal from './modals/AddClientModal';
 
 const ClientManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const clients = [
     {
@@ -41,6 +43,11 @@ const ClientManagement: React.FC = () => {
     },
   ];
 
+  const handleSaveClient = (clientData: any) => {
+    console.log('Saving client:', clientData);
+    // TODO: Implement Firestore save
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -49,7 +56,10 @@ const ClientManagement: React.FC = () => {
           <h1 className="text-3xl font-semibold text-gray-900 mb-2">Client Management</h1>
           <p className="text-gray-600">Manage your clients and their subscriptions</p>
         </div>
-        <button className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-xl font-medium hover:shadow-lg hover:shadow-blue-500/25 transition-all duration-200 flex items-center space-x-2">
+        <button 
+          onClick={() => setIsAddModalOpen(true)}
+          className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-xl font-medium hover:shadow-lg hover:shadow-blue-500/25 transition-all duration-200 flex items-center space-x-2"
+        >
           <Plus className="w-5 h-5" />
           <span>Add Client</span>
         </button>
@@ -125,6 +135,12 @@ const ClientManagement: React.FC = () => {
           </div>
         ))}
       </div>
+
+      <AddClientModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSave={handleSaveClient}
+      />
     </div>
   );
 };

@@ -1,178 +1,101 @@
-
-import React, { useState } from 'react';
-import { Moon, Sun, Bell, Shield, Palette, Database } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+import React from 'react';
+import { Bell, Lock, CreditCard, User, Building, Mail } from 'lucide-react';
 
 const Settings: React.FC = () => {
-  const [darkMode, setDarkMode] = useState(false);
-  const [notifications, setNotifications] = useState(true);
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const { toast } = useToast();
-
-  const handleSaveSettings = () => {
-    // TODO: Implement settings save to Firebase/localStorage
-    toast({
-      title: "Settings Saved",
-      description: "Your preferences have been updated successfully.",
-    });
-  };
+  const settingsSections = [
+    {
+      id: 'profile',
+      title: 'Profile Settings',
+      icon: User,
+      description: 'Manage your personal information and preferences',
+    },
+    {
+      id: 'notifications',
+      title: 'Notification Preferences',
+      icon: Bell,
+      description: 'Configure how and when you receive notifications',
+    },
+    {
+      id: 'security',
+      title: 'Security Settings',
+      icon: Lock,
+      description: 'Manage your password and security preferences',
+    },
+    {
+      id: 'billing',
+      title: 'Billing Information',
+      icon: CreditCard,
+      description: 'Update your payment methods and billing details',
+    },
+    {
+      id: 'organization',
+      title: 'Organization Settings',
+      icon: Building,
+      description: 'Manage your organization details and preferences',
+    },
+    {
+      id: 'email',
+      title: 'Email Settings',
+      icon: Mail,
+      description: 'Configure email templates and preferences',
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-semibold text-gray-900 mb-2">Settings</h1>
-        <p className="text-gray-600">Manage your application preferences and account settings</p>
+      <div>
+        <h1 className="text-2xl font-semibold text-gray-900">Settings</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Manage your account settings and preferences
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Appearance Settings */}
-        <Card className="bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center text-gray-900">
-              <Palette className="w-5 h-5 mr-2" />
-              Appearance
-            </CardTitle>
-            <CardDescription>Customize the look and feel of your application</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                {darkMode ? <Moon className="w-5 h-5 text-gray-600" /> : <Sun className="w-5 h-5 text-gray-600" />}
-                <div>
-                  <p className="font-medium text-gray-900">Dark Mode</p>
-                  <p className="text-sm text-gray-600">Switch between light and dark themes</p>
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {settingsSections.map((section) => (
+          <div
+            key={section.id}
+            className="bg-white rounded-2xl shadow-sm ring-1 ring-gray-900/5 p-6 hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-50 rounded-lg">
+                <section.icon className="w-6 h-6 text-blue-600" />
+              </div>
+              <h3 className="ml-3 text-lg font-semibold text-gray-900">
+                {section.title}
+              </h3>
+            </div>
+            <p className="mt-2 text-sm text-gray-500">{section.description}</p>
+            <div className="mt-6">
+              <button className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                Manage Settings
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm ring-1 ring-gray-900/5 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Changes</h2>
+        <div className="space-y-4">
+          {[1, 2, 3].map((item) => (
+            <div key={item} className="flex items-center justify-between py-3 border-b border-gray-200 last:border-0">
+              <div className="flex items-center">
+                <div className="p-2 bg-blue-50 rounded-lg">
+                  <User className="w-4 h-4 text-blue-600" />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-gray-900">
+                    Profile updated
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Personal information was modified
+                  </p>
                 </div>
               </div>
-              <button
-                onClick={() => setDarkMode(!darkMode)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  darkMode ? 'bg-blue-600' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    darkMode ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
+              <span className="text-sm text-gray-500">2 hours ago</span>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Notification Settings */}
-        <Card className="bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center text-gray-900">
-              <Bell className="w-5 h-5 mr-2" />
-              Notifications
-            </CardTitle>
-            <CardDescription>Configure how you receive notifications</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-gray-900">Push Notifications</p>
-                <p className="text-sm text-gray-600">Receive notifications in your browser</p>
-              </div>
-              <button
-                onClick={() => setNotifications(!notifications)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  notifications ? 'bg-blue-600' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    notifications ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-gray-900">Email Notifications</p>
-                <p className="text-sm text-gray-600">Receive updates via email</p>
-              </div>
-              <button
-                onClick={() => setEmailNotifications(!emailNotifications)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  emailNotifications ? 'bg-blue-600' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    emailNotifications ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Security Settings */}
-        <Card className="bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center text-gray-900">
-              <Shield className="w-5 h-5 mr-2" />
-              Security
-            </CardTitle>
-            <CardDescription>Manage your account security settings</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Button 
-              variant="outline" 
-              className="w-full justify-start h-12"
-              onClick={() => toast({ title: "Feature Coming Soon", description: "Password change functionality will be available soon." })}
-            >
-              Change Password
-            </Button>
-            <Button 
-              variant="outline" 
-              className="w-full justify-start h-12"
-              onClick={() => toast({ title: "Feature Coming Soon", description: "Two-factor authentication will be available soon." })}
-            >
-              Enable Two-Factor Authentication
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Data Management */}
-        <Card className="bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center text-gray-900">
-              <Database className="w-5 h-5 mr-2" />
-              Data Management
-            </CardTitle>
-            <CardDescription>Manage your data and privacy settings</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Button 
-              variant="outline" 
-              className="w-full justify-start h-12"
-              onClick={() => toast({ title: "Export Started", description: "Your data export will be ready shortly." })}
-            >
-              Export Data
-            </Button>
-            <Button 
-              variant="outline" 
-              className="w-full justify-start h-12 text-red-600 border-red-200 hover:bg-red-50"
-              onClick={() => toast({ title: "Feature Coming Soon", description: "Account deletion will require admin approval." })}
-            >
-              Delete Account
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex justify-end">
-        <Button
-          onClick={handleSaveSettings}
-          className="h-12 px-8 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
-        >
-          Save Settings
-        </Button>
+          ))}
+        </div>
       </div>
     </div>
   );

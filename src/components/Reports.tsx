@@ -1,141 +1,109 @@
-
 import React from 'react';
-import { Download, Calendar, TrendingUp } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { Download, Calendar, BarChart2, PieChart, LineChart } from 'lucide-react';
 
 const Reports: React.FC = () => {
-  const pieData = [
-    { name: 'Consultation Fees', value: 45, color: '#0077B6' },
-    { name: 'Medical Supplies', value: 30, color: '#00B4D8' },
-    { name: 'Surgical Procedures', value: 15, color: '#90E0EF' },
-    { name: 'Other Services', value: 10, color: '#CAF0F8' },
-  ];
-
-  const lineData = [
-    { month: 'Jan', income: 8000, expenses: 4000 },
-    { month: 'Feb', income: 7500, expenses: 3800 },
-    { month: 'Mar', income: 9200, expenses: 4200 },
-    { month: 'Apr', income: 8800, expenses: 4100 },
-    { month: 'May', income: 10500, expenses: 4500 },
-    { month: 'Jun', income: 9800, expenses: 4300 },
+  const reports = [
+    {
+      id: 1,
+      title: 'Revenue Overview',
+      type: 'line',
+      icon: LineChart,
+      description: 'Monthly revenue trends and analysis',
+      lastUpdated: '2024-03-15',
+    },
+    {
+      id: 2,
+      title: 'Client Distribution',
+      type: 'pie',
+      icon: PieChart,
+      description: 'Geographic distribution of clients',
+      lastUpdated: '2024-03-14',
+    },
+    {
+      id: 3,
+      title: 'Invoice Status',
+      type: 'bar',
+      icon: BarChart2,
+      description: 'Current status of all invoices',
+      lastUpdated: '2024-03-13',
+    },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-semibold text-gray-900 mb-2">Financial Reports</h1>
-          <p className="text-gray-600">Analyze your financial performance and trends</p>
+          <h1 className="text-2xl font-semibold text-gray-900">Reports</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Generate and view financial reports and analytics
+          </p>
         </div>
-        <div className="flex items-center space-x-3">
-          <button className="flex items-center space-x-2 px-4 py-2 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-            <Calendar className="w-4 h-4 text-gray-500" />
-            <span className="text-gray-700">Date Range</span>
+        <div className="flex items-center space-x-4">
+          <button className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+            <Calendar className="w-4 h-4 mr-2" />
+            Date Range
           </button>
-          <button className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-xl font-medium hover:shadow-lg hover:shadow-blue-500/25 transition-all duration-200 flex items-center space-x-2">
-            <Download className="w-5 h-5" />
-            <span>Export</span>
+          <button className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+            <Download className="w-4 h-4 mr-2" />
+            Export All
           </button>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-green-100 rounded-xl">
-              <TrendingUp className="w-6 h-6 text-green-600" />
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {reports.map((report) => (
+          <div
+            key={report.id}
+            className="bg-white rounded-2xl shadow-sm ring-1 ring-gray-900/5 p-6 hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="p-2 bg-blue-50 rounded-lg">
+                  <report.icon className="w-6 h-6 text-blue-600" />
+                </div>
+                <h3 className="ml-3 text-lg font-semibold text-gray-900">
+                  {report.title}
+                </h3>
+              </div>
+              <button className="text-gray-400 hover:text-gray-500">
+                <Download className="w-5 h-5" />
+              </button>
             </div>
-            <span className="text-sm text-green-600 font-medium">+8.2%</span>
-          </div>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Total Income</h3>
-          <p className="text-2xl font-bold text-gray-900">$53,800</p>
-        </div>
-
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-red-100 rounded-xl">
-              <TrendingUp className="w-6 h-6 text-red-600" />
+            <p className="mt-2 text-sm text-gray-500">{report.description}</p>
+            <div className="mt-4 flex items-center justify-between text-sm">
+              <span className="text-gray-500">Last updated</span>
+              <span className="font-medium text-gray-900">{report.lastUpdated}</span>
             </div>
-            <span className="text-sm text-red-600 font-medium">+3.1%</span>
-          </div>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Total Expenses</h3>
-          <p className="text-2xl font-bold text-gray-900">$24,900</p>
-        </div>
-
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-blue-100 rounded-xl">
-              <TrendingUp className="w-6 h-6 text-blue-600" />
+            <div className="mt-6">
+              <button className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                View Report
+              </button>
             </div>
-            <span className="text-sm text-blue-600 font-medium">+12.5%</span>
           </div>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Net Profit</h3>
-          <p className="text-2xl font-bold text-gray-900">$28,900</p>
-        </div>
+        ))}
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue Breakdown */}
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50">
-          <h3 className="text-lg font-semibold text-gray-900 mb-6">Revenue Breakdown</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                >
-                  {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Income vs Expenses Trend */}
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50">
-          <h3 className="text-lg font-semibold text-gray-900 mb-6">Income vs Expenses Trend</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={lineData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="month" stroke="#666" />
-                <YAxis stroke="#666" />
-                <Tooltip 
-                  contentStyle={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                    border: 'none',
-                    borderRadius: '12px',
-                    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)'
-                  }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="income" 
-                  stroke="#0077B6" 
-                  strokeWidth={3}
-                  dot={{ fill: '#0077B6', strokeWidth: 2, r: 4 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="expenses" 
-                  stroke="#00B4D8" 
-                  strokeWidth={3}
-                  dot={{ fill: '#00B4D8', strokeWidth: 2, r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+      <div className="bg-white rounded-2xl shadow-sm ring-1 ring-gray-900/5 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
+        <div className="space-y-4">
+          {[1, 2, 3].map((item) => (
+            <div key={item} className="flex items-center justify-between py-3 border-b border-gray-200 last:border-0">
+              <div className="flex items-center">
+                <div className="p-2 bg-green-50 rounded-lg">
+                  <Download className="w-4 h-4 text-green-600" />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-gray-900">
+                    Report exported
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Revenue Overview - March 2024
+                  </p>
+                </div>
+              </div>
+              <span className="text-sm text-gray-500">2 hours ago</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

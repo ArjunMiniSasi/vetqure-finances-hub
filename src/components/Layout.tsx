@@ -1,145 +1,231 @@
-
 import React, { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, BarChart3, FileText, Users, PieChart, Bell, LogOut, User, Settings } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Menu, X, LogOut, LayoutDashboard, FileText, Users, BarChart2, Settings, ChevronDown, ChevronRight } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { logout } from '../services/firebaseAuthService';
+import { toast } from 'react-hot-toast';
 
-interface LayoutProps {
-  children: React.ReactNode;
-}
-
-const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const location = useLocation();
+const Layout: React.FC = () => {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const location = useLocation();
 
   const navigation = [
-    { name: 'Dashboard', href: '/', icon: BarChart3 },
-    { name: 'Invoices', href: '/invoices', icon: FileText },
-    { name: 'Clients', href: '/clients', icon: Users },
-    { name: 'Reports', href: '/reports', icon: PieChart },
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    {
+      name: 'Customers',
+      icon: Users,
+      subItems: [
+        { name: 'List', href: '/customers' },
+        { name: 'Invoices', href: '/customers/invoices' },
+        { name: 'Receipts', href: '/customers/receipts' },
+      ]
+    },
+    {
+      name: 'Vendors',
+      icon: FileText,
+      subItems: [
+        { name: 'List', href: '/vendors' },
+        { name: 'Invoices', href: '/vendors/invoices' },
+        { name: 'Receipts', href: '/vendors/receipts' },
+      ]
+    },
+    { name: 'Reports', href: '/reports', icon: BarChart2 },
+    { name: 'Settings', href: '/settings', icon: Settings },
   ];
 
-  const isActive = (path: string) => location.pathname === path;
+  const toggleSubMenu = (menuName: string) => {
+    setExpandedMenus(prev => 
+      prev.includes(menuName) 
+        ? prev.filter(name => name !== menuName)
+        : [...prev, menuName]
+    );
+  };
 
   const handleLogout = async () => {
-    // TODO: Implement Firebase auth logout
-    toast({
-      title: "Logged Out",
-      description: "You have been successfully logged out.",
-    });
-    // Simulate logout delay
-    setTimeout(() => {
+    try {
+      await logout();
+      toast.success('Logged out successfully');
       navigate('/login');
-    }, 1000);
+    } catch (error) {
+      toast.error('Failed to log out');
+    }
+  };
+
+  const renderNavItem = (item: any) => {
+    const isActive = location.pathname === item.href || 
+                    (item.subItems && item.subItems.some((subItem: any) => location.pathname === subItem.href));
+    const isExpanded = expandedMenus.includes(item.name);
+
+    if (item.subItems) {
+      return (
+        <div key={item.name} className="space-y-1">
+          <button
+            onClick={() => toggleSubMenu(item.name)}
+            className={`group flex items-center justify-between w-full px-2 py-2 text-sm font-medium rounded-lg ${
+              isActive
+                ? 'bg-blue-50 text-blue-600'
+                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            }`}
+          >
+            <div className="flex items-center">
+              <item.icon
+                className={`mr-3 h-5 w-5 ${
+                  isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500'
+                }`}
+              />
+              {item.name}
+            </div>
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4 text-gray-400" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-gray-400" />
+            )}
+          </button>
+          {isExpanded && (
+            <div className="ml-4 space-y-1">
+              {item.subItems.map((subItem: any) => {
+                const isSubActive = location.pathname === subItem.href;
+                return (
+                  <button
+                    key={subItem.name}
+                    onClick={() => {
+                      navigate(subItem.href);
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`group flex items-center px-2 py-2 text-sm font-medium rounded-lg w-full ${
+                      isSubActive
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    {subItem.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <button
+        key={item.name}
+        onClick={() => {
+          navigate(item.href);
+          setIsSidebarOpen(false);
+        }}
+        className={`group flex items-center px-2 py-2 text-sm font-medium rounded-lg w-full ${
+          isActive
+            ? 'bg-blue-50 text-blue-600'
+            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+        }`}
+      >
+        <item.icon
+          className={`mr-3 h-5 w-5 ${
+            isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500'
+          }`}
+        />
+        {item.name}
+      </button>
+    );
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Mobile sidebar backdrop */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white/80 backdrop-blur-xl border-r border-gray-200 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">VQ</span>
-            </div>
-            <span className="text-xl font-semibold text-gray-900">VetQure</span>
-          </div>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-1 rounded-md hover:bg-gray-100 transition-colors"
+    <div className="min-h-screen bg-gray-50">
+      {/* Mobile sidebar */}
+      <div className="lg:hidden">
+        <div className="fixed inset-0 z-40 flex">
+          {isSidebarOpen && (
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setIsSidebarOpen(false)} />
+          )}
+          <div
+            className={`fixed inset-y-0 left-0 flex w-64 flex-col bg-white transition-transform duration-300 ease-in-out ${
+              isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}
           >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        
-        <nav className="mt-6 px-3 space-y-1">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.name}
-                to={item.href}
-                className={`flex items-center px-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                  isActive(item.href)
-                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25'
-                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                }`}
-                onClick={() => setSidebarOpen(false)}
+            <div className="flex h-16 items-center justify-between px-4">
+              <h1 className="text-xl font-semibold text-gray-900">VetQure</h1>
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                className="text-gray-500 hover:text-gray-600"
               >
-                <Icon className="w-5 h-5 mr-3" />
-                {item.name}
-              </Link>
-            );
-          })}
-        </nav>
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <nav className="flex-1 space-y-1 px-2 py-4">
+              {navigation.map(renderNavItem)}
+            </nav>
+            <div className="border-t border-gray-200 p-4">
+              <button
+                onClick={handleLogout}
+                className="flex w-full items-center px-2 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 hover:text-gray-900"
+              >
+                <LogOut className="mr-3 h-5 w-5 text-gray-400" />
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop sidebar */}
+      <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
+        <div className="flex min-h-0 flex-1 flex-col border-r border-gray-200 bg-white">
+          <div className="flex h-16 items-center px-4">
+            <h1 className="text-xl font-semibold text-gray-900">VetQure</h1>
+          </div>
+          <nav className="flex-1 space-y-1 px-2 py-4">
+            {navigation.map(renderNavItem)}
+          </nav>
+          <div className="border-t border-gray-200 p-4">
+            <button
+              onClick={handleLogout}
+              className="flex w-full items-center px-2 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 hover:text-gray-900"
+            >
+              <LogOut className="mr-3 h-5 w-5 text-gray-400" />
+              Logout
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Main content */}
-      <div className="lg:ml-64">
-        {/* Top bar */}
-        <div className="bg-white/80 backdrop-blur-xl border-b border-gray-200 px-4 py-3">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-md hover:bg-gray-100 transition-colors"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            
-            <div className="flex items-center space-x-4 ml-auto">
-              <button className="p-2 rounded-full hover:bg-gray-100 transition-colors relative">
-                <Bell className="w-5 h-5 text-gray-600" />
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
-              </button>
-              
-              {/* User Menu */}
+      <div className="lg:pl-64">
+        <div className="sticky top-0 z-10 flex h-16 flex-shrink-0 bg-white shadow">
+          <button
+            type="button"
+            className="px-4 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 lg:hidden"
+            onClick={() => setIsSidebarOpen(true)}
+          >
+            <Menu className="h-6 w-6" />
+          </button>
+          <div className="flex flex-1 justify-between px-4">
+            <div className="flex flex-1"></div>
+            <div className="ml-4 flex items-center md:ml-6">
               <div className="relative">
                 <button
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  type="button"
+                  className="flex max-w-xs items-center rounded-full bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                 >
-                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                    <span className="text-white font-medium text-sm">JD</span>
+                  <span className="sr-only">Open user menu</span>
+                  <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
+                    <span className="text-sm font-medium text-white">
+                      {user?.email?.[0].toUpperCase() || 'U'}
+                    </span>
                   </div>
-                  <span className="hidden md:block text-sm font-medium text-gray-700">John Doe</span>
                 </button>
-
-                {/* User Dropdown Menu */}
-                {userMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
-                    <Link
-                      to="/profile"
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                      onClick={() => setUserMenuOpen(false)}
-                    >
-                      <User className="w-4 h-4 mr-3" />
-                      Profile
-                    </Link>
-                    <Link
-                      to="/settings"
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                      onClick={() => setUserMenuOpen(false)}
-                    >
-                      <Settings className="w-4 h-4 mr-3" />
-                      Settings
-                    </Link>
-                    <hr className="my-2 border-gray-200" />
+                {isUserMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
                     <button
                       onClick={handleLogout}
-                      className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
                     >
-                      <LogOut className="w-4 h-4 mr-3" />
                       Logout
                     </button>
                   </div>
@@ -149,19 +235,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </div>
 
-        {/* Page content */}
-        <main className="p-6">
-          {children}
+        <main className="py-6">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <Outlet />
+          </div>
         </main>
       </div>
-
-      {/* Click outside to close user menu */}
-      {userMenuOpen && (
-        <div
-          className="fixed inset-0 z-30"
-          onClick={() => setUserMenuOpen(false)}
-        />
-      )}
     </div>
   );
 };

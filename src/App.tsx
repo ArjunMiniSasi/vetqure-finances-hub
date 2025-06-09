@@ -9,6 +9,8 @@ import Dashboard from "./components/Dashboard";
 import InvoiceManagement from "./components/InvoiceManagement";
 import ClientManagement from "./components/ClientManagement";
 import Reports from "./components/Reports";
+import UserProfile from "./components/UserProfile";
+import Settings from "./components/Settings";
 import LoginScreen from "./pages/LoginScreen";
 import RegisterScreen from "./pages/RegisterScreen";
 import PasswordResetScreen from "./pages/PasswordResetScreen";

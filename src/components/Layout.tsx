@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, BarChart3, FileText, Users, PieChart, Bell } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, X, BarChart3, FileText, Users, PieChart, Bell, LogOut, User, Settings } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -9,7 +10,10 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: BarChart3 },
@@ -19,6 +23,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   ];
 
   const isActive = (path: string) => location.pathname === path;
+
+  const handleLogout = async () => {
+    // TODO: Implement Firebase auth logout
+    toast({
+      title: "Logged Out",
+      description: "You have been successfully logged out.",
+    });
+    // Simulate logout delay
+    setTimeout(() => {
+      navigate('/login');
+    }, 1000);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -86,8 +102,48 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <Bell className="w-5 h-5 text-gray-600" />
                 <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
               </button>
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                <span className="text-white font-medium text-sm">JD</span>
+              
+              {/* User Menu */}
+              <div className="relative">
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                    <span className="text-white font-medium text-sm">JD</span>
+                  </div>
+                  <span className="hidden md:block text-sm font-medium text-gray-700">John Doe</span>
+                </button>
+
+                {/* User Dropdown Menu */}
+                {userMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
+                    <Link
+                      to="/profile"
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      <User className="w-4 h-4 mr-3" />
+                      Profile
+                    </Link>
+                    <Link
+                      to="/settings"
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      <Settings className="w-4 h-4 mr-3" />
+                      Settings
+                    </Link>
+                    <hr className="my-2 border-gray-200" />
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4 mr-3" />
+                      Logout
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -98,6 +154,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {children}
         </main>
       </div>
+
+      {/* Click outside to close user menu */}
+      {userMenuOpen && (
+        <div
+          className="fixed inset-0 z-30"
+          onClick={() => setUserMenuOpen(false)}
+        />
+      )}
     </div>
   );
 };

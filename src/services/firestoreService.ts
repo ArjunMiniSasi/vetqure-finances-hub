@@ -11,7 +11,11 @@ import {
     orderBy,
     Timestamp,
     DocumentData,
-    setDoc
+    setDoc,
+    limit,
+    startAfter,
+    startAt,
+    endAt
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
@@ -284,4 +288,99 @@ export const convertTimestampToDate = (data: DocumentData): any => {
         }
     }
     return result;
+};
+
+export const getCustomerById = async (customerId: string): Promise<Customer | null> => {
+    try {
+        const customerRef = doc(db, 'customers', customerId);
+        const customerSnap = await getDoc(customerRef);
+        if (customerSnap.exists()) {
+            return { id: customerSnap.id, ...customerSnap.data() } as Customer;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error fetching customer by ID:', error);
+        return null;
+    }
+};
+
+// Paginated Customer Fetch
+export const getCustomersPaginated = async (
+    pageSize: number,
+    lastDoc?: DocumentData // pass the last document from previous page for next page
+): Promise<{ customers: Customer[]; lastDoc: DocumentData | null }> => {
+    try {
+        let q = query(
+            collection(db, 'customers'),
+            orderBy('createdAt', 'desc'),
+            limit(pageSize)
+        );
+        if (lastDoc) {
+            q = query(
+                collection(db, 'customers'),
+                orderBy('createdAt', 'desc'),
+                startAfter(lastDoc),
+                limit(pageSize)
+            );
+        }
+        const querySnapshot = await getDocs(q);
+        const customers = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as Customer));
+        const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
+        return { customers, lastDoc: lastVisible };
+    } catch (error) {
+        console.error('Error getting paginated customers:', error);
+        throw error;
+    }
+};
+
+// Paginated Customer Search by Name
+export const getCustomersPaginatedByName = async (
+    searchTerm: string,
+    pageSize: number,
+    lastDoc?: DocumentData
+): Promise<{ customers: Customer[]; lastDoc: DocumentData | null }> => {
+    try {
+        let q = query(
+            collection(db, 'customers'),
+            orderBy('name'),
+            startAt(searchTerm),
+            endAt(searchTerm + '\uf8ff'),
+            limit(pageSize)
+        );
+        if (lastDoc) {
+            q = query(
+                collection(db, 'customers'),
+                orderBy('name'),
+                startAt(searchTerm),
+                endAt(searchTerm + '\uf8ff'),
+                startAfter(lastDoc),
+                limit(pageSize)
+            );
+        }
+        const querySnapshot = await getDocs(q);
+        const customers = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as Customer));
+        const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
+        return { customers, lastDoc: lastVisible };
+    } catch (error) {
+        console.error('Error getting paginated customers by name:', error);
+        throw error;
+    }
+};
+
+// Check if a customer exists by email
+export const checkCustomerExistsByEmail = async (email: string): Promise<boolean> => {
+    try {
+        const q = query(collection(db, 'customers'), where('email', '==', email));
+        const querySnapshot = await getDocs(q);
+        return !querySnapshot.empty;
+    } catch (error) {
+        console.error('Error checking customer by email:', error);
+        throw error;
+    }
 }; 

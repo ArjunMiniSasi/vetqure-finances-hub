@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from 'react-hot-toast';
-import { Customer, addCustomer, getCustomers, updateCustomer, getCustomersPaginated } from '@/services/firestoreService';
+import { Customer, addCustomer, getCustomers, updateCustomer, getCustomersPaginated, checkCustomerExistsByEmail, getCustomersPaginatedByName } from '@/services/firestoreService';
 import { Timestamp } from 'firebase/firestore';
 
 const CustomerList: React.FC = () => {
@@ -30,6 +30,8 @@ const CustomerList: React.FC = () => {
   const [isLastPage, setIsLastPage] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 10;
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [duplicateEmailError, setDuplicateEmailError] = useState('');
 
   const getSubscriptionStatus = (renewalDate: Date | null): 'active' | 'expired' | 'pending' => {
     if (!renewalDate) return 'pending';
@@ -43,47 +45,60 @@ const CustomerList: React.FC = () => {
     // eslint-disable-next-line
   }, []);
 
-  const fetchPage = async (direction: 'next' | 'prev' = 'next', search = searchTerm) => {
+  const fetchPage = async (direction: 'next' | 'prev' = 'next', search = searchTerm, reset = false) => {
     setLoading(true);
     try {
+      let newPrevDocs = reset ? [] : [...prevDocs];
+      let localLastDoc = reset ? null : lastDoc;
       if (search && search.trim() !== '') {
-        const all = await getCustomers();
-        setCustomers(
-          all.filter(customer =>
-            customer.name.toLowerCase().includes(search.toLowerCase()) ||
-            customer.entity_name.toLowerCase().includes(search.toLowerCase()) ||
-            customer.email.toLowerCase().includes(search.toLowerCase()) ||
-            customer.phone.includes(search)
-          )
-        );
-        setLastDoc(null);
-        setPrevDocs([]);
-        setIsLastPage(true);
-        setCurrentPage(1);
+        // Use Firestore-powered paginated search
+        if (direction === 'next') {
+          if (!reset && localLastDoc) {
+            newPrevDocs.push(localLastDoc);
+            setCurrentPage((prev) => prev + 1);
+          } else if (reset) {
+            setCurrentPage(1);
+          }
+          const { customers: pageCustomers, lastDoc: newLastDoc } = await getCustomersPaginatedByName(search, PAGE_SIZE, reset ? null : lastDoc);
+          setCustomers(pageCustomers);
+          setLastDoc(newLastDoc);
+          setPrevDocs(newPrevDocs);
+          setIsLastPage(!newLastDoc || pageCustomers.length < PAGE_SIZE);
+        } else if (direction === 'prev') {
+          newPrevDocs.pop();
+          const prevDoc = newPrevDocs.length > 0 ? newPrevDocs[newPrevDocs.length - 1] : null;
+          const { customers: pageCustomers, lastDoc: newLastDoc } = await getCustomersPaginatedByName(search, PAGE_SIZE, prevDoc);
+          setCustomers(pageCustomers);
+          setLastDoc(newLastDoc);
+          setPrevDocs(newPrevDocs);
+          setIsLastPage(false);
+          setCurrentPage((prev) => Math.max(1, prev - 1));
+        }
         setLoading(false);
         return;
       }
-      let pageLastDoc = lastDoc;
-      let newPrevDocs = [...prevDocs];
+      // Default: no search term, use normal pagination
       if (direction === 'next') {
-        if (customers.length > 0) {
-          newPrevDocs.push(customers[0]);
+        if (!reset && localLastDoc) {
+          newPrevDocs.push(localLastDoc);
+          setCurrentPage((prev) => prev + 1);
+        } else if (reset) {
+          setCurrentPage(1);
         }
-        const { customers: pageCustomers, lastDoc: newLastDoc } = await getCustomersPaginated(PAGE_SIZE, lastDoc);
+        const { customers: pageCustomers, lastDoc: newLastDoc } = await getCustomersPaginated(PAGE_SIZE, reset ? null : lastDoc);
         setCustomers(pageCustomers);
         setLastDoc(newLastDoc);
         setPrevDocs(newPrevDocs);
         setIsLastPage(!newLastDoc || pageCustomers.length < PAGE_SIZE);
-        setCurrentPage(currentPage + 1);
       } else if (direction === 'prev') {
         newPrevDocs.pop();
-        pageLastDoc = newPrevDocs.length > 0 ? newPrevDocs[newPrevDocs.length - 1] : null;
-        const { customers: pageCustomers, lastDoc: newLastDoc } = await getCustomersPaginated(PAGE_SIZE, pageLastDoc);
+        const prevDoc = newPrevDocs.length > 0 ? newPrevDocs[newPrevDocs.length - 1] : null;
+        const { customers: pageCustomers, lastDoc: newLastDoc } = await getCustomersPaginated(PAGE_SIZE, prevDoc);
         setCustomers(pageCustomers);
         setLastDoc(newLastDoc);
         setPrevDocs(newPrevDocs);
         setIsLastPage(false);
-        setCurrentPage(Math.max(1, currentPage - 1));
+        setCurrentPage((prev) => Math.max(1, prev - 1));
       }
     } catch (error) {
       toast.error('Failed to load customers');
@@ -93,18 +108,33 @@ const CustomerList: React.FC = () => {
     }
   };
 
+  // Add a helper to reset pagination and fetch the first page
+  const resetPaginationAndFetch = () => {
+    setLastDoc(null);
+    setPrevDocs([]);
+    setCurrentPage(1);
+    setIsLastPage(false);
+    setTimeout(() => fetchPage('next', '', true), 0);
+  };
+
   // Reset pagination on search
   useEffect(() => {
     if (searchTerm.trim() === '') {
-      fetchPage('next', '');
+      resetPaginationAndFetch();
     } else {
-      fetchPage('next', searchTerm);
+      setLastDoc(null);
+      setPrevDocs([]);
+      setCurrentPage(1);
+      setIsLastPage(false);
+      fetchPage('next', searchTerm, true);
     }
     // eslint-disable-next-line
   }, [searchTerm]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitLoading(true);
+    setDuplicateEmailError('');
     try {
       const customerData = {
         name: newCustomer.name,
@@ -116,6 +146,16 @@ const CustomerList: React.FC = () => {
         status: newCustomer.status,
         renewal_date: newCustomer.renewal_date ? Timestamp.fromDate(newCustomer.renewal_date) : null
       };
+
+      if (!editingCustomer) {
+        // Check for duplicate email before adding
+        const exists = await checkCustomerExistsByEmail(newCustomer.email);
+        if (exists) {
+          setDuplicateEmailError('Customer already exists in the database.');
+          setSubmitLoading(false);
+          return;
+        }
+      }
 
       if (editingCustomer) {
         await updateCustomer(editingCustomer.id!, customerData);
@@ -130,6 +170,8 @@ const CustomerList: React.FC = () => {
     } catch (error) {
       toast.error(editingCustomer ? 'Failed to update customer' : 'Failed to add customer');
       console.error('Error:', error);
+    } finally {
+      setSubmitLoading(false);
     }
   };
 
@@ -160,19 +202,26 @@ const CustomerList: React.FC = () => {
       status: 'active',
       renewal_date: null
     });
+    setDuplicateEmailError('');
   };
 
   const handleModalClose = () => {
     setIsModalOpen(false);
     resetForm();
+    setDuplicateEmailError('');
   };
 
-  const filteredCustomers = customers.filter(customer =>
-    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.entity_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.phone.includes(searchTerm)
-  );
+  // Remove client-side filtering and sorting for search, since Firestore now handles it
+  const filteredCustomers = customers;
+
+  // Helper to format date for input type="date"
+  function formatDateForInput(date: Date | null) {
+    if (!date) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
 
   return (
     <div className="space-y-6">
@@ -226,27 +275,11 @@ const CustomerList: React.FC = () => {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-200">
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Entity/Business Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Email
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Phone
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Subscription
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subscription</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -260,16 +293,10 @@ const CustomerList: React.FC = () => {
                           <div className="text-sm font-medium text-gray-900">{customer.name}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{customer.entity_name}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-500">{customer.email}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-500">{customer.phone}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500 capitalize">{customer.type}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
@@ -308,7 +335,7 @@ const CustomerList: React.FC = () => {
             {/* Pagination Controls */}
             {searchTerm.trim() === '' && (
               <div className="flex justify-end items-center gap-2 p-4">
-                <Button variant="outline" onClick={() => fetchPage('prev')} disabled={prevDocs.length <= 1 || loading || currentPage === 1}>
+                <Button variant="outline" onClick={() => fetchPage('prev')} disabled={loading || currentPage === 1}>
                   Previous
                 </Button>
                 <span className="text-sm text-gray-600">Page {currentPage}</span>
@@ -374,9 +401,15 @@ const CustomerList: React.FC = () => {
                   id="email"
                   type="email"
                   value={newCustomer.email}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                  onChange={(e) => {
+                    setNewCustomer({ ...newCustomer, email: e.target.value });
+                    setDuplicateEmailError('');
+                  }}
                   required
                 />
+                {duplicateEmailError && (
+                  <div className="text-red-600 text-xs mt-1">{duplicateEmailError}</div>
+                )}
               </div>
             </div>
 
@@ -423,7 +456,7 @@ const CustomerList: React.FC = () => {
               <Input
                 id="renewal_date"
                 type="date"
-                value={newCustomer.renewal_date ? newCustomer.renewal_date.toISOString().split('T')[0] : ''}
+                value={formatDateForInput(newCustomer.renewal_date)}
                 onChange={(e) => {
                   const dateValue = e.target.value;
                   if (dateValue) {
@@ -451,8 +484,13 @@ const CustomerList: React.FC = () => {
               <Button
                 type="submit"
                 className="bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={submitLoading}
               >
-                {editingCustomer ? 'Update Customer' : 'Add Customer'}
+                {submitLoading ? (
+                  <span className="flex items-center"><span className="loader mr-2"></span>{editingCustomer ? 'Updating...' : 'Adding...'}</span>
+                ) : (
+                  editingCustomer ? 'Update Customer' : 'Add Customer'
+                )}
               </Button>
             </DialogFooter>
           </form>

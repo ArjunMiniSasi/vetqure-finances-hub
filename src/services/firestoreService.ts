@@ -19,6 +19,7 @@ import { db } from '../config/firebase';
 export interface Customer {
     id?: string;
     name: string;
+    entity_name: string;
     email: string;
     phone: string;
     address: string;
@@ -36,7 +37,7 @@ export interface Invoice {
     customer_name: string;
     date_created: Timestamp;
     due_date: Timestamp;
-    status: 'paid' | 'sent' | 'draft' | 'overdue';
+    status: 'pending' | 'completed' | 'cancelled';
     total: number;
     items: InvoiceItem[];
     notes?: string;
@@ -65,6 +66,7 @@ export interface Receipt {
     notes?: string;
     createdAt: Date;
     updatedAt: Date;
+    currency: string;
 }
 
 // Customer Operations
@@ -194,24 +196,13 @@ export const getAllInvoices = async (): Promise<Invoice[]> => {
 // Receipt Operations
 export const addReceipt = async (receiptData: Omit<Receipt, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
     try {
-        const now = new Date();
+        const now = Timestamp.now();
         const receiptWithTimestamps = {
             ...receiptData,
             createdAt: now,
             updatedAt: now
         };
-
-        const docRef = await addDoc(collection(db, 'receipts'), receiptWithTimestamps);
-
-        // Update invoice status to 'paid' if receipt is successful
-        if (receiptData.status === 'successful') {
-            const invoiceRef = doc(db, 'invoices', receiptData.invoice_id);
-            await updateDoc(invoiceRef, {
-                status: 'paid',
-                updatedAt: now
-            });
-        }
-
+        const docRef = await addDoc(collection(db, 'customer_receipts'), receiptWithTimestamps);
         return docRef.id;
     } catch (error) {
         console.error('Error adding receipt:', error);
@@ -222,7 +213,7 @@ export const addReceipt = async (receiptData: Omit<Receipt, 'id' | 'createdAt' |
 export const getCustomerReceipts = async (customerId: string): Promise<Receipt[]> => {
     try {
         const q = query(
-            collection(db, 'receipts'),
+            collection(db, 'customer_receipts'),
             where('customer_id', '==', customerId),
             orderBy('date', 'desc')
         );
@@ -234,6 +225,52 @@ export const getCustomerReceipts = async (customerId: string): Promise<Receipt[]
         } as Receipt));
     } catch (error) {
         console.error('Error getting customer receipts:', error);
+        throw error;
+    }
+};
+
+export const getAllReceipts = async (): Promise<Receipt[]> => {
+    try {
+        const q = query(
+            collection(db, 'customer_receipts'),
+            orderBy('date', 'desc')
+        );
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as Receipt));
+    } catch (error) {
+        console.error('Error getting all receipts:', error);
+        throw error;
+    }
+};
+
+export const updateInvoiceStatus = async (invoiceId: string, status: 'pending' | 'completed' | 'cancelled') => {
+    try {
+        const invoiceRef = doc(db, 'customer_invoices', invoiceId);
+        await updateDoc(invoiceRef, { status, updatedAt: Timestamp.now() });
+    } catch (error) {
+        console.error('Error updating invoice status:', error);
+        throw error;
+    }
+};
+
+export const updateCustomerRenewalDate = async (customerId: string, newRenewalDate: Timestamp) => {
+    try {
+        const customerRef = doc(db, 'customers', customerId);
+        await updateDoc(customerRef, { renewal_date: newRenewalDate, updatedAt: Timestamp.now() });
+    } catch (error) {
+        console.error('Error updating customer renewal date:', error);
+        throw error;
+    }
+};
+
+export const deleteInvoice = async (invoiceId: string) => {
+    try {
+        await deleteDoc(doc(db, 'customer_invoices', invoiceId));
+    } catch (error) {
+        console.error('Error deleting invoice:', error);
         throw error;
     }
 };

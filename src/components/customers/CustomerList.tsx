@@ -17,6 +17,7 @@ const CustomerList: React.FC = () => {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [newCustomer, setNewCustomer] = useState({
     name: '',
+    entity_name: '',
     email: '',
     phone: '',
     address: '',
@@ -54,6 +55,7 @@ const CustomerList: React.FC = () => {
     try {
       const customerData = {
         name: newCustomer.name,
+        entity_name: newCustomer.entity_name,
         email: newCustomer.email,
         phone: newCustomer.phone,
         address: newCustomer.address,
@@ -82,6 +84,7 @@ const CustomerList: React.FC = () => {
     setEditingCustomer(customer);
     setNewCustomer({
       name: customer.name,
+      entity_name: customer.entity_name,
       email: customer.email,
       phone: customer.phone,
       address: customer.address,
@@ -96,6 +99,7 @@ const CustomerList: React.FC = () => {
     setEditingCustomer(null);
     setNewCustomer({
       name: '',
+      entity_name: '',
       email: '',
       phone: '',
       address: '',
@@ -112,6 +116,7 @@ const CustomerList: React.FC = () => {
 
   const filteredCustomers = customers.filter(customer =>
     customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    customer.entity_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     customer.phone.includes(searchTerm)
   );
@@ -171,6 +176,9 @@ const CustomerList: React.FC = () => {
                       Name
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Entity/Business Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Email
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -178,9 +186,6 @@ const CustomerList: React.FC = () => {
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Type
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Subscription
@@ -201,6 +206,9 @@ const CustomerList: React.FC = () => {
                           <div className="text-sm font-medium text-gray-900">{customer.name}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{customer.entity_name}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-500">{customer.email}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -208,17 +216,6 @@ const CustomerList: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-500 capitalize">{customer.type}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              customer.status === 'active'
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-red-100 text-red-800'
-                            }`}
-                          >
-                            {customer.status}
-                          </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
@@ -267,11 +264,40 @@ const CustomerList: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
+                <Label htmlFor="name">Contact Name</Label>
                 <Input
                   id="name"
                   value={newCustomer.name}
                   onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
+                  placeholder="Enter contact person name"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="type">Type</Label>
+                <select
+                  id="type"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2"
+                  value={newCustomer.type}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, type: e.target.value as 'individual' | 'business' })}
+                  required
+                >
+                  <option value="individual">Individual</option>
+                  <option value="business">Business</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="entity_name">
+                  {newCustomer.type === 'individual' ? 'Firm Name' : 'Business Name'}
+                </Label>
+                <Input
+                  id="entity_name"
+                  value={newCustomer.entity_name}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, entity_name: e.target.value })}
+                  placeholder={newCustomer.type === 'individual' ? 'Enter firm name' : 'Enter business name'}
                   required
                 />
               </div>
@@ -299,16 +325,16 @@ const CustomerList: React.FC = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="type">Type</Label>
+                <Label htmlFor="status">Status</Label>
                 <select
-                  id="type"
+                  id="status"
                   className="w-full rounded-md border border-gray-300 px-3 py-2"
-                  value={newCustomer.type}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, type: e.target.value as 'individual' | 'business' })}
+                  value={newCustomer.status}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, status: e.target.value as 'active' | 'inactive' })}
                   required
                 >
-                  <option value="individual">Individual</option>
-                  <option value="business">Business</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
                 </select>
               </div>
             </div>
@@ -325,45 +351,30 @@ const CustomerList: React.FC = () => {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <select
-                  id="status"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2"
-                  value={newCustomer.status}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, status: e.target.value as 'active' | 'inactive' })}
-                  required
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="renewal_date">Renewal Date</Label>
-                <Input
-                  id="renewal_date"
-                  type="date"
-                  value={newCustomer.renewal_date ? newCustomer.renewal_date.toISOString().split('T')[0] : ''}
-                  onChange={(e) => {
-                    const dateValue = e.target.value;
-                    if (dateValue) {
-                      const date = new Date(dateValue + 'T00:00:00');
-                      if (!isNaN(date.getTime())) {
-                        setNewCustomer({
-                          ...newCustomer,
-                          renewal_date: date
-                        });
-                      }
-                    } else {
+            <div className="space-y-2">
+              <Label htmlFor="renewal_date">Renewal Date</Label>
+              <Input
+                id="renewal_date"
+                type="date"
+                value={newCustomer.renewal_date ? newCustomer.renewal_date.toISOString().split('T')[0] : ''}
+                onChange={(e) => {
+                  const dateValue = e.target.value;
+                  if (dateValue) {
+                    const date = new Date(dateValue + 'T00:00:00');
+                    if (!isNaN(date.getTime())) {
                       setNewCustomer({
                         ...newCustomer,
-                        renewal_date: null
+                        renewal_date: date
                       });
                     }
-                  }}
-                />
-              </div>
+                  } else {
+                    setNewCustomer({
+                      ...newCustomer,
+                      renewal_date: null
+                    });
+                  }
+                }}
+              />
             </div>
 
             <DialogFooter>

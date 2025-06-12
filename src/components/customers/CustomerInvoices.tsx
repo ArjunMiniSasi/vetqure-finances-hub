@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from 'react-hot-toast';
-import { Invoice, InvoiceItem, addInvoice, getAllInvoices, Customer, getCustomers } from '@/services/firestoreService';
+import { Invoice, InvoiceItem, addInvoice, getAllInvoices, Customer, getCustomers, addReceipt, updateInvoiceStatus, updateCustomerRenewalDate } from '@/services/firestoreService';
 import { Timestamp } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import html2pdf from 'html2pdf.js';
@@ -18,66 +18,66 @@ const currencyOptions = [
   { code: 'GBP', symbol: '£', label: 'GBP (£)' },
 ];
 
-// HTML template with placeholders for available data
+const PRIMARY_COLOR = '#01358c';
+
+// Modern HTML template with dynamic data and primary color
 const invoiceHtmlTemplate = ({ invoice, customer }) => `
-  <div class="container">
-    <div class="header">
-      <h1>Billing Invoice</h1>
-      <p>${invoice.date_created.toDate().toLocaleDateString()}</p>
+  <div class="container" style="font-family: Arial, sans-serif; max-width: 700px; margin: 20px auto; padding: 24px; border-radius: 16px; border: 1px solid #e0e0e0; box-shadow: 0 0 16px rgba(1,53,140,0.08); background: #fff;">
+    <div class="header" style="text-align: center; margin-bottom: 32px;">
+      <h1 style="color: ${PRIMARY_COLOR}; font-size: 2rem; margin-bottom: 0.5rem;">INVOICE</h1>
+      <div style="font-size: 1.1rem; color: #555;">${invoice.invoice_id || invoice.id}</div>
+      <div style="font-size: 1rem; color: #888;">${invoice.date_created.toDate().toLocaleDateString()}</div>
     </div>
-    <div class="section">
-      <h3>VetQure Bill Details</h3>
-      <p><strong>Invoice number:</strong> ${invoice.invoice_id || invoice.id}</p>
-      <p><strong>Date of issue:</strong> ${invoice.date_created.toDate().toLocaleDateString()}</p>
-      <p><strong>Payment due on:</strong> ${invoice.due_date.toDate().toLocaleDateString()}</p>
-    </div>
-    <div class="section flex">
-      <div>
-        <h3>From</h3>
-        <p>VAMS Veterinary Consultancy Pvt Ltd<br>
-          KRA-113, Kedaram Nagar, Pattom<br>
-          Trivandrum<br>
-        </p>
+    <div class="flex" style="display: flex; justify-content: space-between; margin-bottom: 24px;">
+      <div style="flex: 1;">
+        <h3 style="color: ${PRIMARY_COLOR}; margin-bottom: 0.5rem;">From</h3>
+        <div style="font-size: 1rem; color: #333; font-weight: 500;">VAMS Veterinary Consultancy Pvt Ltd</div>
+        <div style="font-size: 0.95rem; color: #555;">KRA-113, Kedaram Nagar, Pattom, Trivandrum</div>
       </div>
-      <div>
-        <h3>Billing Details</h3>
-        <p>${customer.name}<br>
-          ${customer.address || ''}<br>
-          ${customer.email ? 'Email: ' + customer.email + '<br>' : ''}
-        </p>
+      <div style="flex: 1;">
+        <h3 style="color: ${PRIMARY_COLOR}; margin-bottom: 0.5rem;">Bill To</h3>
+        <div style="font-size: 1rem; color: #333; font-weight: 500;">${customer.entity_name}</div>
+        <div style="font-size: 0.95rem; color: #555;">${customer.address || ''}</div>
+        <div style="font-size: 0.95rem; color: #555;">${customer.email || ''}</div>
+        <div style="font-size: 0.95rem; color: #555;">${customer.phone || ''}</div>
       </div>
     </div>
-    <div class="section">
-      <h3>Description</h3>
-      <table class="table">
+    <div class="section" style="margin-bottom: 24px;">
+      <table class="table" style="width: 100%; border-collapse: collapse; margin-top: 10px;">
         <thead>
           <tr>
-            <th>Description</th>
-            <th>QTY</th>
-            <th>Rate (${invoice.currency})</th>
-            <th>Total Amount (${invoice.currency})</th>
+            <th style="background-color: #01358c; color: #fff; font-weight: bold; font-size: 1.05rem; letter-spacing: 0.5px; padding: 14px 10px; text-align: left;">Description</th>
+            <th style="background-color: #01358c; color: #fff; font-weight: bold; font-size: 1.05rem; letter-spacing: 0.5px; padding: 14px 10px; text-align: right;">QTY</th>
+            <th style="background-color: #01358c; color: #fff; font-weight: bold; font-size: 1.05rem; letter-spacing: 0.5px; padding: 14px 10px; text-align: right;">Rate (${invoice.currency})</th>
+            <th style="background-color: #01358c; color: #fff; font-weight: bold; font-size: 1.05rem; letter-spacing: 0.5px; padding: 14px 10px; text-align: right;">Amount (${invoice.currency})</th>
           </tr>
         </thead>
         <tbody>
           ${invoice.items.map(item => `
-            <tr>
-              <td>${item.description}</td>
-              <td>${item.quantity}</td>
-              <td>${item.unit_price}</td>
-              <td>${item.amount}</td>
+            <tr style="background: #f8faff;">
+              <td style="padding: 12px 10px; font-size: 1rem; color: #222;">${item.description}</td>
+              <td style="padding: 12px 10px; text-align: right; font-size: 1rem; color: #222;">${item.quantity}</td>
+              <td style="padding: 12px 10px; text-align: right; font-size: 1rem; color: #222;">${item.unit_price}</td>
+              <td style="padding: 12px 10px; text-align: right; font-size: 1rem; color: #222;">${item.amount}</td>
             </tr>
           `).join('')}
         </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3" style="padding: 12px 10px; text-align: right; font-weight: bold; color: ${PRIMARY_COLOR}; font-size: 1.08rem;">Total</td>
+            <td style="padding: 12px 10px; text-align: right; font-weight: bold; color: ${PRIMARY_COLOR}; font-size: 1.08rem;">${invoice.total} ${invoice.currency}</td>
+          </tr>
+        </tfoot>
       </table>
     </div>
-    <div class="section">
-      <h3>Payment Terms:</h3>
-      <p>Payment is due upon receipt of the VAMS Veterinary Consultancy Pvt Ltd</p>
+    <div class="section" style="margin-bottom: 24px;">
+      <div style="font-size: 1rem; color: #333;"><strong>Payment Due:</strong> ${invoice.due_date.toDate().toLocaleDateString()}</div>
+      <div style="font-size: 1rem; color: #333;"><strong>Status:</strong> ${invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}</div>
+      <div style="font-size: 1rem; color: #333;"><strong>Notes:</strong> ${invoice.notes || '-'}</div>
     </div>
-    <div class="footer">
-      <p>Thank you for your business!</p>
-      <p>Sincerely,</p>
-      <p>Arjun M S<br>Director, VAMS Veterinary Consultancy Pvt Ltd</p>
+    <div class="footer" style="text-align: center; margin-top: 32px; color: #888;">
+      <div style="font-size: 1.1rem; color: ${PRIMARY_COLOR}; font-weight: bold;">Thank you for your business!</div>
+      <div style="margin-top: 8px;">VAMS Veterinary Consultancy Pvt Ltd</div>
     </div>
   </div>
 `;
@@ -93,7 +93,7 @@ const CustomerInvoices: React.FC = () => {
     customer_name: '',
     date_created: Timestamp.now(),
     due_date: Timestamp.now(),
-    status: 'draft' as const,
+    status: 'pending' as const,
     total: 0,
     items: [] as InvoiceItem[],
     notes: '',
@@ -110,6 +110,12 @@ const CustomerInvoices: React.FC = () => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [receiptForm, setReceiptForm] = useState({
+    method: 'cash' as 'card' | 'cash' | 'bank_transfer',
+    notes: '',
+    reference_number: '',
+  });
+  const [receiptLoading, setReceiptLoading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -153,7 +159,7 @@ const CustomerInvoices: React.FC = () => {
         ...newInvoice,
         date_created: Timestamp.now(),
         due_date: Timestamp.fromDate(new Date(newInvoice.due_date.toDate())),
-        status: 'draft',
+        status: 'pending',
         total: newInvoice.items.reduce((sum, item) => sum + item.amount, 0)
       });
 
@@ -166,7 +172,7 @@ const CustomerInvoices: React.FC = () => {
         customer_name: '',
         date_created: Timestamp.now(),
         due_date: Timestamp.now(),
-        status: 'draft',
+        status: 'pending',
         total: 0,
         items: [],
         notes: '',
@@ -207,7 +213,7 @@ const CustomerInvoices: React.FC = () => {
       setNewInvoice(prev => ({
         ...prev,
         customer_id: customer.id!,
-        customer_name: customer.name
+        customer_name: customer.entity_name
       }));
     }
   };
@@ -262,6 +268,43 @@ const CustomerInvoices: React.FC = () => {
     setIsReceiptModalOpen(false);
   };
 
+  const handleGenerateReceipt = async () => {
+    if (!selectedInvoice || !selectedCustomer) return;
+    setReceiptLoading(true);
+    try {
+      // Create receipt
+      const receiptData = {
+        invoice_id: selectedInvoice.id!,
+        customer_id: selectedCustomer.id!,
+        customer_name: selectedCustomer.entity_name,
+        amount: selectedInvoice.total,
+        date: new Date(),
+        method: receiptForm.method,
+        status: 'successful' as 'successful',
+        reference_number: receiptForm.reference_number || undefined,
+        notes: receiptForm.notes || undefined,
+        currency: selectedInvoice.currency,
+      };
+      await addReceipt(receiptData);
+      // Update invoice status
+      await updateInvoiceStatus(selectedInvoice.id!, 'completed');
+      // Update customer renewal_date to one month later
+      const currentRenewal = selectedCustomer.renewal_date?.toDate?.() || new Date();
+      const nextRenewal = new Date(currentRenewal);
+      nextRenewal.setMonth(nextRenewal.getMonth() + 1);
+      await updateCustomerRenewalDate(selectedCustomer.id!, Timestamp.fromDate(nextRenewal));
+      toast.success('Receipt generated and invoice marked as completed!');
+      setIsReceiptModalOpen(false);
+      setReceiptForm({ method: 'cash', notes: '', reference_number: '' });
+      loadData();
+    } catch (error) {
+      toast.error('Failed to generate receipt');
+      console.error('Error generating receipt:', error);
+    } finally {
+      setReceiptLoading(false);
+    }
+  };
+
   const filteredInvoices = invoices.filter(invoice =>
     invoice.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     invoice.id?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -269,14 +312,12 @@ const CustomerInvoices: React.FC = () => {
 
   const getStatusColor = (status: Invoice['status']) => {
     switch (status) {
-      case 'paid':
+      case 'pending':
+        return 'bg-yellow-100 text-orange-800';
+      case 'completed':
         return 'bg-green-100 text-green-800';
-      case 'sent':
-        return 'bg-blue-100 text-blue-800';
-      case 'draft':
-        return 'bg-gray-100 text-gray-800';
-      case 'overdue':
-        return 'bg-red-100 text-red-800';
+      case 'cancelled':
+        return 'bg-pink-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -429,7 +470,7 @@ const CustomerInvoices: React.FC = () => {
                   <option value="">Select a customer</option>
                   {customers.map((customer) => (
                     <option key={customer.id} value={customer.id}>
-                      {customer.name}
+                      {customer.entity_name}
                     </option>
                   ))}
                 </select>
@@ -654,20 +695,62 @@ const CustomerInvoices: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Receipt Modal (placeholder) */}
+      {/* Receipt Modal */}
       <Dialog open={isReceiptModalOpen} onOpenChange={setIsReceiptModalOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Generate Receipt</DialogTitle>
             <DialogDescription>
-              Fill out the form to create a receipt for this invoice.
+              Fill out the form to create a receipt for this invoice. This will mark the invoice as paid and update the customer renewal date.
             </DialogDescription>
           </DialogHeader>
-          {/* You can add a form here to create a receipt and save to Firestore */}
-          <div className="flex flex-col gap-4">
-            <div>Receipt generation form goes here.</div>
-            <Button type="button" onClick={handleCloseReceiptModal} variant="outline">Close</Button>
-          </div>
+          {selectedInvoice && selectedCustomer ? (
+            <form className="flex flex-col gap-4" onSubmit={e => { e.preventDefault(); handleGenerateReceipt(); }}>
+              <div>
+                <Label>Amount</Label>
+                <Input value={selectedInvoice.total} disabled />
+              </div>
+              <div>
+                <Label>Payment Method</Label>
+                <select
+                  className="w-full rounded-md border border-gray-300 px-3 py-2"
+                  value={receiptForm.method}
+                  onChange={e => setReceiptForm({ ...receiptForm, method: e.target.value as any })}
+                  required
+                >
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                </select>
+              </div>
+              <div>
+                <Label>Reference Number (optional)</Label>
+                <Input
+                  value={receiptForm.reference_number}
+                  onChange={e => setReceiptForm({ ...receiptForm, reference_number: e.target.value })}
+                  placeholder="Transaction/Reference number"
+                />
+              </div>
+              <div>
+                <Label>Notes (optional)</Label>
+                <textarea
+                  className="w-full rounded-md border border-gray-300 px-3 py-2"
+                  rows={2}
+                  value={receiptForm.notes}
+                  onChange={e => setReceiptForm({ ...receiptForm, notes: e.target.value })}
+                  placeholder="Add any notes..."
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" onClick={handleCloseReceiptModal} variant="outline" disabled={receiptLoading}>Cancel</Button>
+                <Button type="submit" className="bg-purple-600 text-white" disabled={receiptLoading}>
+                  {receiptLoading ? 'Generating...' : 'Generate Receipt'}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : (
+            <div>No invoice selected.</div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -1,31 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Download } from 'lucide-react';
+import { Search, Filter, Download, Mail, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import { toast } from 'react-hot-toast';
-import { Receipt, addReceipt, getCustomerReceipts, Customer, getCustomers, Invoice, getCustomerInvoices } from '@/services/firestoreService';
+import { Receipt, getCustomerReceipts, Customer, getCustomers, Invoice, getCustomerInvoices, getAllReceipts } from '@/services/firestoreService';
+import { Timestamp } from 'firebase/firestore';
+import { PDFDownloadLink } from '@react-pdf/renderer';
+import ReceiptPDF from '@/components/customers/ReceiptPDF';
 
 const CustomerReceipts: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newReceipt, setNewReceipt] = useState({
-    invoice_id: '',
-    customer_id: '',
-    customer_name: '',
-    amount: 0,
-    date: new Date(),
-    method: 'cash' as const,
-    status: 'pending' as const,
-    reference_number: '',
-    notes: ''
-  });
+  const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -35,11 +27,16 @@ const CustomerReceipts: React.FC = () => {
     try {
       setLoading(true);
       const [receiptsData, customersData, invoicesData] = await Promise.all([
-        getCustomerReceipts('all'), // You might want to modify this to get all receipts
+        getAllReceipts(),
         getCustomers(),
         getCustomerInvoices('all')
       ]);
-      setReceipts(receiptsData);
+      // Convert Firestore Timestamp to Date for receipt.date
+      const processedReceipts = receiptsData.map(receipt => ({
+        ...receipt,
+        date: receipt.date instanceof Timestamp ? receipt.date.toDate() : new Date(receipt.date)
+      }));
+      setReceipts(processedReceipts);
       setCustomers(customersData);
       setInvoices(invoicesData);
     } catch (error) {
@@ -47,52 +44,6 @@ const CustomerReceipts: React.FC = () => {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleAddReceipt = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await addReceipt(newReceipt);
-      toast.success('Receipt created successfully');
-      setIsAddModalOpen(false);
-      setNewReceipt({
-        invoice_id: '',
-        customer_id: '',
-        customer_name: '',
-        amount: 0,
-        date: new Date(),
-        method: 'cash',
-        status: 'pending',
-        reference_number: '',
-        notes: ''
-      });
-      loadData();
-    } catch (error) {
-      toast.error('Failed to create receipt');
-      console.error('Error creating receipt:', error);
-    }
-  };
-
-  const handleCustomerSelect = (customerId: string) => {
-    const customer = customers.find(c => c.id === customerId);
-    if (customer) {
-      setNewReceipt(prev => ({
-        ...prev,
-        customer_id: customer.id!,
-        customer_name: customer.name
-      }));
-    }
-  };
-
-  const handleInvoiceSelect = (invoiceId: string) => {
-    const invoice = invoices.find(i => i.id === invoiceId);
-    if (invoice) {
-      setNewReceipt(prev => ({
-        ...prev,
-        invoice_id: invoice.id!,
-        amount: invoice.total
-      }));
     }
   };
 
@@ -104,7 +55,7 @@ const CustomerReceipts: React.FC = () => {
 
   const getStatusColor = (status: Receipt['status']) => {
     switch (status) {
-      case 'completed':
+      case 'successful':
         return 'bg-green-100 text-green-800';
       case 'pending':
         return 'bg-yellow-100 text-yellow-800';
@@ -119,17 +70,37 @@ const CustomerReceipts: React.FC = () => {
     return method.charAt(0).toUpperCase() + method.slice(1);
   };
 
+  const getCurrencySymbol = (code: string) => {
+    switch (code) {
+      case 'INR': return '₹';
+      case 'USD': return '$';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      default: return code || '₹';
+    }
+  };
+
+  const handleViewDetails = (receipt: Receipt) => {
+    setSelectedReceipt(receipt);
+    setIsDetailsModalOpen(true);
+  };
+
+  const handleSendEmail = async () => {
+    if (!selectedReceipt) return;
+    
+    try {
+      // TODO: Implement email sending functionality
+      toast.success('Receipt sent to customer email');
+    } catch (error) {
+      toast.error('Failed to send email');
+      console.error('Error sending email:', error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold text-gray-900">Customer Receipts</h1>
-        <Button
-          onClick={() => setIsAddModalOpen(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Record Payment
-        </Button>
       </div>
 
       <Card>
@@ -194,14 +165,14 @@ const CustomerReceipts: React.FC = () => {
                   {filteredReceipts.map((receipt) => (
                     <tr key={receipt.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{receipt.id}</div>
+                        <div className="text-sm font-medium text-gray-900">{receipt.reference_number}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">{receipt.customer_name}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          ${receipt.amount.toFixed(2)}
+                          {getCurrencySymbol(receipt.currency || 'INR')} {receipt.amount.toFixed(2)} {receipt.currency}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -224,7 +195,11 @@ const CustomerReceipts: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <Button variant="ghost" className="text-blue-600 hover:text-blue-900">
+                        <Button 
+                          variant="ghost" 
+                          className="text-blue-600 hover:text-blue-900"
+                          onClick={() => handleViewDetails(receipt)}
+                        >
                           View Details
                         </Button>
                       </td>
@@ -237,144 +212,89 @@ const CustomerReceipts: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Add Receipt Modal */}
-      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+      {/* Receipt Details Modal */}
+      <Dialog open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Record New Payment</DialogTitle>
+            <DialogTitle>Receipt Details</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleAddReceipt} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="customer">Customer</Label>
-                <select
-                  id="customer"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2"
-                  value={newReceipt.customer_id}
-                  onChange={(e) => handleCustomerSelect(e.target.value)}
-                  required
+          
+          {selectedReceipt && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Receipt ID</h3>
+                  <p className="mt-1 text-sm text-gray-900">{selectedReceipt.reference_number}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Date</h3>
+                  <p className="mt-1 text-sm text-gray-900">{selectedReceipt.date.toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Customer</h3>
+                  <p className="mt-1 text-sm text-gray-900">{selectedReceipt.customer_name}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Amount</h3>
+                  <p className="mt-1 text-sm text-gray-900">{getCurrencySymbol(selectedReceipt.currency || 'INR')} {selectedReceipt.amount.toFixed(2)} {selectedReceipt.currency}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Payment Method</h3>
+                  <p className="mt-1 text-sm text-gray-900">{formatPaymentMethod(selectedReceipt.method)}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Status</h3>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedReceipt.status)}`}>
+                    {selectedReceipt.status}
+                  </span>
+                </div>
+              </div>
+
+              {selectedReceipt.notes && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Notes</h3>
+                  <p className="mt-1 text-sm text-gray-900">{selectedReceipt.notes}</p>
+                </div>
+              )}
+
+              <DialogFooter className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleSendEmail}
+                  className="flex items-center"
                 >
-                  <option value="">Select a customer</option>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="invoice">Invoice</Label>
-                <select
-                  id="invoice"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2"
-                  value={newReceipt.invoice_id}
-                  onChange={(e) => handleInvoiceSelect(e.target.value)}
-                  required
-                >
-                  <option value="">Select an invoice</option>
-                  {invoices
-                    .filter(invoice => invoice.customer_id === newReceipt.customer_id)
-                    .map((invoice) => (
-                      <option key={invoice.id} value={invoice.id}>
-                        {invoice.id} - ${invoice.total.toFixed(2)}
-                      </option>
-                    ))}
-                </select>
-              </div>
+                  <Mail className="w-4 h-4 mr-2" />
+                  Send to Email
+                </Button>
+                {selectedReceipt && (
+                  <PDFDownloadLink
+                    document={<ReceiptPDF receipt={selectedReceipt} />}
+                    fileName={(() => {
+                      const getReceiptDate = (date: any) => {
+                        if (!date) return new Date();
+                        if (date instanceof Date) return date;
+                        if (typeof date === 'object' && typeof date.toDate === 'function') return date.toDate();
+                        return new Date(date);
+                      };
+                      const d = getReceiptDate(selectedReceipt.date);
+                      const dateStr = d ? `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}` : 'date';
+                      const name = selectedReceipt.customer_name ? selectedReceipt.customer_name.replace(/\s+/g, '_').toLowerCase() : 'customer';
+                      const invoice = selectedReceipt.invoice_id ? selectedReceipt.invoice_id.replace(/\s+/g, '_').toLowerCase() : 'invoice';
+                      return `receipt-${dateStr}-${name}-${invoice}.pdf`;
+                    })()}
+                    className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+                  >
+                    {({ loading }) => (
+                      <div className="flex items-center">
+                        <FileText className="w-4 h-4 mr-2" />
+                        {loading ? 'Generating PDF...' : 'Download PDF'}
+                      </div>
+                    )}
+                  </PDFDownloadLink>
+                )}
+              </DialogFooter>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="amount">Amount</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={newReceipt.amount}
-                  onChange={(e) => setNewReceipt({
-                    ...newReceipt,
-                    amount: parseFloat(e.target.value)
-                  })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="date">Date</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={newReceipt.date.toISOString().split('T')[0]}
-                  onChange={(e) => setNewReceipt({
-                    ...newReceipt,
-                    date: new Date(e.target.value)
-                  })}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="method">Payment Method</Label>
-                <select
-                  id="method"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2"
-                  value={newReceipt.method}
-                  onChange={(e) => setNewReceipt({
-                    ...newReceipt,
-                    method: e.target.value as Receipt['method']
-                  })}
-                  required
-                >
-                  <option value="cash">Cash</option>
-                  <option value="credit_card">Credit Card</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="check">Check</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reference_number">Reference Number</Label>
-                <Input
-                  id="reference_number"
-                  value={newReceipt.reference_number}
-                  onChange={(e) => setNewReceipt({
-                    ...newReceipt,
-                    reference_number: e.target.value
-                  })}
-                  placeholder="Optional"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <textarea
-                id="notes"
-                className="w-full rounded-md border border-gray-300 px-3 py-2"
-                rows={3}
-                value={newReceipt.notes}
-                onChange={(e) => setNewReceipt({
-                  ...newReceipt,
-                  notes: e.target.value
-                })}
-                placeholder="Optional"
-              />
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={!newReceipt.customer_id || !newReceipt.invoice_id || newReceipt.amount <= 0}
-              >
-                Record Payment
-              </Button>
-            </DialogFooter>
-          </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>

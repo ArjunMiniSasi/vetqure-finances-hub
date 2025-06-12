@@ -5,10 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'react-hot-toast';
-import { Receipt, getCustomerReceipts, Customer, getCustomers, Invoice, getCustomerInvoices, getAllReceipts } from '@/services/firestoreService';
+import { Receipt, getCustomerReceipts, Customer, getCustomers, Invoice, getCustomerInvoices, getAllReceipts, getCustomerById } from '@/services/firestoreService';
 import { Timestamp } from 'firebase/firestore';
-import { PDFDownloadLink } from '@react-pdf/renderer';
-import ReceiptPDF from '@/components/customers/ReceiptPDF';
+import html2pdf from 'html2pdf.js';
 
 const CustomerReceipts: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -31,7 +30,6 @@ const CustomerReceipts: React.FC = () => {
         getCustomers(),
         getCustomerInvoices('all')
       ]);
-      // Convert Firestore Timestamp to Date for receipt.date
       const processedReceipts = receiptsData.map(receipt => ({
         ...receipt,
         date: receipt.date instanceof Timestamp ? receipt.date.toDate() : new Date(receipt.date)
@@ -94,6 +92,139 @@ const CustomerReceipts: React.FC = () => {
     } catch (error) {
       toast.error('Failed to send email');
       console.error('Error sending email:', error);
+    }
+  };
+
+  const generateReceiptHTML = (receipt: Receipt, customer: Customer) => {
+    return `
+      <div style="position: relative; font-family: 'Inter', Arial, sans-serif; max-width: 700px; margin: 0 auto; padding: 40px 32px 32px 32px; color: #222; background: #fff;">
+        <!-- Watermark -->
+        <div style="position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%) rotate(-25deg); font-size: 90px; color: #e0e0e0; opacity: 0.25; font-weight: 900; pointer-events: none; user-select: none; z-index: 0; letter-spacing: 8px;">PAID</div>
+        <div style="position: relative; z-index: 1;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px;">
+            <div style="font-size: 24px; font-weight: 700; letter-spacing: -1px;">Receipt</div>
+            <img src="/assets/vetqure.png" style="height: 38px; margin-left: 16px;" />
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 32px; gap: 32px;">
+            <div style="flex: 1; min-width: 180px; font-size: 14px;">
+              <div style="margin-bottom: 8px;"><span style="font-weight: 600;">Invoice number</span><br>${receipt.invoice_id}</div>
+              <div style="margin-bottom: 8px;"><span style="font-weight: 600;">Transaction Ref No</span><br>${receipt.reference_number}</div>
+              <div style="margin-bottom: 8px;"><span style="font-weight: 600;">Date paid</span><br>${receipt.date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+              <div style="margin-bottom: 8px;"><span style="font-weight: 600;">Payment method</span><br>${receipt.method ? receipt.method.charAt(0).toUpperCase() + receipt.method.slice(1) : ''}</div>
+              <div style="margin-bottom: 8px; font-weight: 600;">VAMS Veterinary Consultancy Pvt Ltd<br>KRA-113, Kedaram Nagar, Pattom<br>Trivandrum</div>
+            </div>
+            <div style="flex: 1; min-width: 180px; font-size: 14px;">
+              <div style="font-weight: 600; margin-bottom: 8px;">Bill to</div>
+              <div style="margin-bottom: 4px;">${customer.entity_name || customer.name || receipt.customer_name}</div>
+              <div style="margin-bottom: 4px;">${customer.email}</div>
+            </div>
+          </div>
+          <div style="font-size: 18px; font-weight: 700; margin: 32px 0 24px 0; color: #111;">
+            ${getCurrencySymbol(receipt.currency || 'INR')}${receipt.amount.toFixed(2)} paid on ${receipt.date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+          </div>
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+            <thead>
+              <tr style="border-bottom: 1.5px solid #e5e7eb;">
+                <th style="text-align: left; font-size: 13px; color: #444; font-weight: 500; padding: 8px 0;">Description</th>
+                <th style="text-align: right; font-size: 13px; color: #444; font-weight: 500; padding: 8px 0;">Qty</th>
+                <th style="text-align: right; font-size: 13px; color: #444; font-weight: 500; padding: 8px 0;">Unit price</th>
+                <th style="text-align: right; font-size: 13px; color: #444; font-weight: 500; padding: 8px 0;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 8px 0; font-size: 14px; color: #222;">${receipt.notes || 'Payment'}</td>
+                <td style="text-align: right; padding: 8px 0; font-size: 14px; color: #222;">1</td>
+                <td style="text-align: right; padding: 8px 0; font-size: 14px; color: #222;">${getCurrencySymbol(receipt.currency || 'INR')}${receipt.amount.toFixed(2)}</td>
+                <td style="text-align: right; padding: 8px 0; font-size: 14px; color: #222;">${getCurrencySymbol(receipt.currency || 'INR')}${receipt.amount.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
+            <tbody>
+              <tr>
+                <td style="text-align: right; color: #444; font-size: 14px; padding: 4px 0;">Subtotal</td>
+                <td style="text-align: right; font-size: 14px; padding: 4px 0; min-width: 100px;">${getCurrencySymbol(receipt.currency || 'INR')}${receipt.amount.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td style="text-align: right; color: #444; font-size: 14px; padding: 4px 0;">Total</td>
+                <td style="text-align: right; font-size: 14px; padding: 4px 0; min-width: 100px;">${getCurrencySymbol(receipt.currency || 'INR')}${receipt.amount.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td style="text-align: right; color: #111; font-size: 15px; font-weight: 700; padding: 4px 0;">Amount paid</td>
+                <td style="text-align: right; font-size: 15px; font-weight: 700; padding: 4px 0; min-width: 100px;">${getCurrencySymbol(receipt.currency || 'INR')}${receipt.amount.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <!-- Signature and Seal (bottom right, linear, with labels) -->
+          <div style="display: flex; align-items: flex-end; justify-content: flex-end; margin-top: 24px; gap: 32px; page-break-inside: avoid;">
+            <div style="display: flex; flex-direction: column; align-items: center;">
+              <img src="/assets/seal.png" style="width: 130px; height: 130px; object-fit: contain; margin-bottom: 4px;" />
+              <div style="font-size: 13px; color: #888; margin-top: 2px;">Verified by</div>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center;">
+              <img src="/assets/signature.png" style="height: 48px; margin-bottom: 4px;" />
+              <div style="font-size: 13px; color: #888; margin-top: 2px;">Authorised Signatory</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  const handleViewPDF = async (receipt: Receipt) => {
+    try {
+      let customerInfo = {
+        name: receipt.customer_name || '',
+        entity_name: receipt.customer_name || '',
+        address: (receipt as any).customer_address || '',
+        email: (receipt as any).customer_email || '',
+        phone: (receipt as any).customer_phone || '',
+      };
+      if (!customerInfo.address || !customerInfo.email || !customerInfo.phone) {
+        if (receipt.customer_id) {
+          const dbCustomer = await getCustomerById(receipt.customer_id);
+          if (dbCustomer) {
+            customerInfo = {
+              ...customerInfo,
+              address: dbCustomer.address || customerInfo.address,
+              email: dbCustomer.email || customerInfo.email,
+              phone: dbCustomer.phone || customerInfo.phone,
+              entity_name: dbCustomer.entity_name || customerInfo.entity_name,
+              name: dbCustomer.name || customerInfo.name,
+            };
+          }
+        }
+      }
+      const customer = {
+        id: receipt.customer_id,
+        ...customerInfo,
+        renewal_date: undefined,
+        gstin: '',
+        pan: '',
+        type: 'business' as const,
+        status: 'active' as const,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      };
+      const element = document.createElement('div');
+      element.innerHTML = generateReceiptHTML(receipt, customer);
+      document.body.appendChild(element);
+      const opt = {
+        margin: 1,
+        filename: `receipt-${receipt.reference_number}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+      };
+      const worker = html2pdf().set(opt).from(element);
+      const pdfBlob = await worker.outputPdf('blob');
+      const url = URL.createObjectURL(pdfBlob);
+      window.open(url, '_blank');
+      document.body.removeChild(element);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Failed to generate PDF');
     }
   };
 
@@ -267,30 +398,13 @@ const CustomerReceipts: React.FC = () => {
                   Send to Email
                 </Button>
                 {selectedReceipt && (
-                  <PDFDownloadLink
-                    document={<ReceiptPDF receipt={selectedReceipt} />}
-                    fileName={(() => {
-                      const getReceiptDate = (date: any) => {
-                        if (!date) return new Date();
-                        if (date instanceof Date) return date;
-                        if (typeof date === 'object' && typeof date.toDate === 'function') return date.toDate();
-                        return new Date(date);
-                      };
-                      const d = getReceiptDate(selectedReceipt.date);
-                      const dateStr = d ? `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}` : 'date';
-                      const name = selectedReceipt.customer_name ? selectedReceipt.customer_name.replace(/\s+/g, '_').toLowerCase() : 'customer';
-                      const invoice = selectedReceipt.invoice_id ? selectedReceipt.invoice_id.replace(/\s+/g, '_').toLowerCase() : 'invoice';
-                      return `receipt-${dateStr}-${name}-${invoice}.pdf`;
-                    })()}
+                  <Button
                     className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+                    onClick={() => handleViewPDF(selectedReceipt)}
                   >
-                    {({ loading }) => (
-                      <div className="flex items-center">
-                        <FileText className="w-4 h-4 mr-2" />
-                        {loading ? 'Generating PDF...' : 'Download PDF'}
-                      </div>
-                    )}
-                  </PDFDownloadLink>
+                    <FileText className="w-4 h-4 mr-2" />
+                    View PDF
+                  </Button>
                 )}
               </DialogFooter>
             </div>

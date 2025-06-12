@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from 'react-hot-toast';
-import { Customer, addCustomer, getCustomers, updateCustomer } from '@/services/firestoreService';
+import { Customer, addCustomer, getCustomers, updateCustomer, getCustomersPaginated } from '@/services/firestoreService';
 import { Timestamp } from 'firebase/firestore';
 
 const CustomerList: React.FC = () => {
@@ -25,6 +25,11 @@ const CustomerList: React.FC = () => {
     status: 'active' as 'active' | 'inactive',
     renewal_date: null as Date | null
   });
+  const [lastDoc, setLastDoc] = useState<any>(null);
+  const [prevDocs, setPrevDocs] = useState<any[]>([]);
+  const [isLastPage, setIsLastPage] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   const getSubscriptionStatus = (renewalDate: Date | null): 'active' | 'expired' | 'pending' => {
     if (!renewalDate) return 'pending';
@@ -34,14 +39,52 @@ const CustomerList: React.FC = () => {
   };
 
   useEffect(() => {
-    loadCustomers();
+    fetchPage();
+    // eslint-disable-next-line
   }, []);
 
-  const loadCustomers = async () => {
+  const fetchPage = async (direction: 'next' | 'prev' = 'next', search = searchTerm) => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const customersData = await getCustomers();
-      setCustomers(customersData);
+      if (search && search.trim() !== '') {
+        const all = await getCustomers();
+        setCustomers(
+          all.filter(customer =>
+            customer.name.toLowerCase().includes(search.toLowerCase()) ||
+            customer.entity_name.toLowerCase().includes(search.toLowerCase()) ||
+            customer.email.toLowerCase().includes(search.toLowerCase()) ||
+            customer.phone.includes(search)
+          )
+        );
+        setLastDoc(null);
+        setPrevDocs([]);
+        setIsLastPage(true);
+        setCurrentPage(1);
+        setLoading(false);
+        return;
+      }
+      let pageLastDoc = lastDoc;
+      let newPrevDocs = [...prevDocs];
+      if (direction === 'next') {
+        if (customers.length > 0) {
+          newPrevDocs.push(customers[0]);
+        }
+        const { customers: pageCustomers, lastDoc: newLastDoc } = await getCustomersPaginated(PAGE_SIZE, lastDoc);
+        setCustomers(pageCustomers);
+        setLastDoc(newLastDoc);
+        setPrevDocs(newPrevDocs);
+        setIsLastPage(!newLastDoc || pageCustomers.length < PAGE_SIZE);
+        setCurrentPage(currentPage + 1);
+      } else if (direction === 'prev') {
+        newPrevDocs.pop();
+        pageLastDoc = newPrevDocs.length > 0 ? newPrevDocs[newPrevDocs.length - 1] : null;
+        const { customers: pageCustomers, lastDoc: newLastDoc } = await getCustomersPaginated(PAGE_SIZE, pageLastDoc);
+        setCustomers(pageCustomers);
+        setLastDoc(newLastDoc);
+        setPrevDocs(newPrevDocs);
+        setIsLastPage(false);
+        setCurrentPage(Math.max(1, currentPage - 1));
+      }
     } catch (error) {
       toast.error('Failed to load customers');
       console.error('Error loading customers:', error);
@@ -49,6 +92,16 @@ const CustomerList: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Reset pagination on search
+  useEffect(() => {
+    if (searchTerm.trim() === '') {
+      fetchPage('next', '');
+    } else {
+      fetchPage('next', searchTerm);
+    }
+    // eslint-disable-next-line
+  }, [searchTerm]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,7 +126,7 @@ const CustomerList: React.FC = () => {
       }
       setIsModalOpen(false);
       resetForm();
-      loadCustomers();
+      fetchPage();
     } catch (error) {
       toast.error(editingCustomer ? 'Failed to update customer' : 'Failed to add customer');
       console.error('Error:', error);
@@ -168,6 +221,7 @@ const CustomerList: React.FC = () => {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
           ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -251,6 +305,19 @@ const CustomerList: React.FC = () => {
                 </tbody>
               </table>
             </div>
+            {/* Pagination Controls */}
+            {searchTerm.trim() === '' && (
+              <div className="flex justify-end items-center gap-2 p-4">
+                <Button variant="outline" onClick={() => fetchPage('prev')} disabled={prevDocs.length <= 1 || loading || currentPage === 1}>
+                  Previous
+                </Button>
+                <span className="text-sm text-gray-600">Page {currentPage}</span>
+                <Button variant="outline" onClick={() => fetchPage('next')} disabled={isLastPage || loading}>
+                  Next
+                </Button>
+              </div>
+            )}
+            </>
           )}
         </CardContent>
       </Card>

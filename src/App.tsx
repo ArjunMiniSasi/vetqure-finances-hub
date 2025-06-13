@@ -14,6 +14,7 @@ import VendorList from './components/vendors/VendorList';
 import VendorInvoices from './components/vendors/invoices/VendorInvoices';
 import Reports from './components/Reports';
 import Settings from './components/Settings';
+import EmployeeList from './components/employees/EmployeeList';
 
 const App: React.FC = () => {
   return (
@@ -40,6 +41,8 @@ const App: React.FC = () => {
             
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Settings />} />
+
+            <Route path="/team/employees" element={<EmployeeList />} />
           </Route>
 
           {/* Redirect root to dashboard */}

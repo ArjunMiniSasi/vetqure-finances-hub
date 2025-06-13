@@ -32,6 +32,13 @@ const Layout: React.FC = () => {
         { name: 'Invoices', href: '/vendors/invoices' },
       ]
     },
+    {
+      name: 'Team',
+      icon: Users,
+      subItems: [
+        { name: 'Employees', href: '/team/employees' },
+      ]
+    },
     { name: 'Reports', href: '/reports', icon: BarChart2 },
     { name: 'Settings', href: '/settings', icon: Settings },
   ];

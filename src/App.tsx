@@ -11,8 +11,7 @@ import CustomerList from './components/customers/CustomerList';
 import CustomerInvoices from './components/customers/invoices/CustomerInvoices';
 import CustomerReceipts from './components/customers/receipts/CustomerReceipts';
 import VendorList from './components/vendors/VendorList';
-import VendorInvoices from './components/vendors/VendorInvoices';
-import VendorReceipts from './components/vendors/VendorReceipts';
+import VendorInvoices from './components/vendors/invoices/VendorInvoices';
 import Reports from './components/Reports';
 import Settings from './components/Settings';
 
@@ -38,7 +37,6 @@ const App: React.FC = () => {
             {/* Vendor routes */}
             <Route path="/vendors" element={<VendorList />} />
             <Route path="/vendors/invoices" element={<VendorInvoices />} />
-            <Route path="/vendors/receipts" element={<VendorReceipts />} />
             
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Settings />} />

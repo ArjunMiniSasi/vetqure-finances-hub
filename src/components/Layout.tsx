@@ -30,7 +30,6 @@ const Layout: React.FC = () => {
       subItems: [
         { name: 'List', href: '/vendors' },
         { name: 'Invoices', href: '/vendors/invoices' },
-        { name: 'Receipts', href: '/vendors/receipts' },
       ]
     },
     { name: 'Reports', href: '/reports', icon: BarChart2 },

@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 // Function to verify environment variables
 const verifyEnvVariables = () => {
@@ -37,6 +38,7 @@ const verifyEnvVariables = () => {
 let app;
 let auth;
 let db;
+let storage;
 
 try {
     // Verify environment variables before initializing Firebase
@@ -64,9 +66,13 @@ try {
     db = getFirestore(app);
     console.log('Firestore initialized successfully');
 
+    // Initialize Cloud Storage and get a reference to the service
+    storage = getStorage(app);
+    console.log('Storage initialized successfully');
+
 } catch (error) {
     console.error('Error initializing Firebase:', error);
     throw error; // Re-throw the error to prevent the app from running with invalid configuration
 }
 
-export { auth, db }; 
+export { auth, db, storage }; 

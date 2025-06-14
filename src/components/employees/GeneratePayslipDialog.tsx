@@ -199,7 +199,7 @@ const GeneratePayslipDialog: React.FC<GeneratePayslipDialogProps> = ({ open, onO
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg w-full p-0">
+      <DialogContent className="w-[50vw] max-w-[95vw] max-h-[80vh] overflow-auto p-0">
         <DialogHeader className="px-6 pt-6 pb-2">
           <DialogTitle className="text-2xl font-bold">Generate Payslip</DialogTitle>
           <DialogDescription className="text-gray-500 text-sm mt-1">

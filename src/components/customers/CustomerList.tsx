@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'react-hot-toast';
 import { Customer, addCustomer, getCustomers, updateCustomer, getCustomersPaginated, checkCustomerExistsByEmail, getCustomersPaginatedByName } from '@/services/firestoreService';
 import { Timestamp } from 'firebase/firestore';
+import StatusToggleField from '@/components/ui/StatusToggleField';
 
 const CustomerList: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -351,7 +352,7 @@ const CustomerList: React.FC = () => {
 
       {/* Add/Edit Customer Modal */}
       <Dialog open={isModalOpen} onOpenChange={handleModalClose}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-[50vw] max-w-[95vw] max-h-[80vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>{editingCustomer ? 'Edit Customer' : 'Add New Customer'}</DialogTitle>
           </DialogHeader>
@@ -424,18 +425,14 @@ const CustomerList: React.FC = () => {
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <select
-                  id="status"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2"
+              <div className="space-y-2 flex items-end h-full">
+                <StatusToggleField
                   value={newCustomer.status}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, status: e.target.value as 'active' | 'inactive' })}
-                  required
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
+                  onChange={(status) => setNewCustomer({ ...newCustomer, status })}
+                  activeLabel="Customer is active"
+                  inactiveLabel="Customer is inactive"
+                  label="Status"
+                />
               </div>
             </div>
 

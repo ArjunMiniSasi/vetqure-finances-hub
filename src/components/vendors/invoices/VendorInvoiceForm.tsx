@@ -156,49 +156,46 @@ const VendorInvoiceForm: React.FC<VendorInvoiceFormProps> = ({ vendors, onSubmit
             )}
           />
 
-          {/* Currency */}
+          {/* Currency and Amount Combined */}
           <FormField
             control={form.control}
             name="currency"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Currency</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select currency" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {currencyOptions.map((cur) => (
-                      <SelectItem key={cur} value={cur}>{cur}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Amount Paid */}
-          <FormField
-            control={form.control}
-            name="amount"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Amount Paid</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    min={1}
-                    step={0.01}
-                    placeholder="Enter amount"
-                    value={field.value}
-                    onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+            render={({ field: currencyField }) => (
+              <FormField
+                control={form.control}
+                name="amount"
+                render={({ field: amountField }) => (
+                  <FormItem>
+                    <FormLabel>Amount</FormLabel>
+                    <div className="flex gap-2">
+                      <Select onValueChange={currencyField.onChange} value={currencyField.value}>
+                        <FormControl>
+                          <SelectTrigger className="w-[120px]">
+                            <SelectValue placeholder="Currency" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {currencyOptions.map((cur) => (
+                            <SelectItem key={cur} value={cur}>{cur}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={1}
+                          step={0.01}
+                          placeholder="Enter amount"
+                          value={amountField.value}
+                          onChange={e => amountField.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                          className="flex-1"
+                        />
+                      </FormControl>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             )}
           />
 
@@ -208,10 +205,15 @@ const VendorInvoiceForm: React.FC<VendorInvoiceFormProps> = ({ vendors, onSubmit
             name="invoiceFile"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Upload Invoice (PDF/Image)</FormLabel>
+                <div className="text-sm font-medium text-gray-700 mb-1">Upload Invoice (PDF/Image)</div>
                 <div className="flex items-center gap-2">
                   <FormControl>
-                    <Input type="file" accept="application/pdf,image/*" onChange={e => field.onChange(e.target.files?.[0])} />
+                    <Input 
+                      type="file" 
+                      accept="application/pdf,image/*" 
+                      onChange={e => field.onChange(e.target.files?.[0])}
+                      className="cursor-pointer"
+                    />
                   </FormControl>
                   {field.value && (
                     <Button
@@ -241,10 +243,15 @@ const VendorInvoiceForm: React.FC<VendorInvoiceFormProps> = ({ vendors, onSubmit
             name="receiptFile"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Upload Receipt (PDF/Image, Optional)</FormLabel>
+                <div className="text-sm font-medium text-gray-700 mb-1">Upload Receipt (PDF/Image, Optional)</div>
                 <div className="flex items-center gap-2">
                   <FormControl>
-                    <Input type="file" accept="application/pdf,image/*" onChange={e => field.onChange(e.target.files?.[0])} />
+                    <Input 
+                      type="file" 
+                      accept="application/pdf,image/*" 
+                      onChange={e => field.onChange(e.target.files?.[0])}
+                      className="cursor-pointer"
+                    />
                   </FormControl>
                   {field.value && (
                     <Button

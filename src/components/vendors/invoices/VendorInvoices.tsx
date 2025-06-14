@@ -117,6 +117,16 @@ const VendorInvoices: React.FC = () => {
     return isNaN(d.getTime()) ? '-' : d.toLocaleDateString();
   };
 
+  function currencySymbol(code: string) {
+    switch (code) {
+      case 'INR': return '₹';
+      case 'USD': return '$';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      default: return code || '$';
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -209,7 +219,7 @@ const VendorInvoices: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900">
-                            {invoice.amount ? `$${invoice.amount.toFixed(2)}` : '-'}
+                            {invoice.amount ? `${currencySymbol(invoice.currency)}${invoice.amount.toFixed(2)}` : '-'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex items-center gap-2 justify-end">

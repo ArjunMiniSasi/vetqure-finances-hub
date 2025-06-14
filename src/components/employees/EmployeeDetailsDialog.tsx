@@ -1,6 +1,7 @@
-import React from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import React, { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { BadgeCheck, Mail, Phone, StickyNote, FileText, MapPin, Calendar, User, Building2 } from 'lucide-react';
+import FileViewerDialog from '@/components/ui/FileViewerDialog';
 
 interface EmployeeDetailsDialogProps {
   open: boolean;
@@ -9,11 +10,16 @@ interface EmployeeDetailsDialogProps {
 }
 
 const EmployeeDetailsDialog: React.FC<EmployeeDetailsDialogProps> = ({ open, onOpenChange, employee }) => {
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerFile, setViewerFile] = useState<string | null>(null);
+  const [viewerType, setViewerType] = useState<'pdf' | 'image'>('pdf');
+  const [viewerTitle, setViewerTitle] = useState<string>('');
+
   if (!employee) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl p-0">
+      <DialogContent className="w-[50vw] max-w-[95vw] max-h-[80vh] overflow-auto p-0">
         <DialogHeader className="px-6 pt-6 pb-2">
           <DialogTitle className="text-2xl font-semibold flex items-center gap-2">
             Employee Details
@@ -21,6 +27,9 @@ const EmployeeDetailsDialog: React.FC<EmployeeDetailsDialogProps> = ({ open, onO
               <span className="ml-2"><BadgeCheck className="text-green-500 w-5 h-5" /></span>
             )}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Detailed information about the employee, including documents and notes.
+          </DialogDescription>
         </DialogHeader>
         <div className="px-6 pb-6">
           <div className="rounded-lg border bg-white shadow-sm divide-y divide-gray-100">
@@ -111,7 +120,18 @@ const EmployeeDetailsDialog: React.FC<EmployeeDetailsDialogProps> = ({ open, onO
                 <div>
                   <div className="text-xs text-gray-500 mb-1">Aadhar Scan</div>
                   {employee.aadharUrl ? (
-                    <a href={employee.aadharUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View Document</a>
+                    <button
+                      type="button"
+                      className="text-blue-600 hover:underline"
+                      onClick={() => {
+                        setViewerFile(employee.aadharUrl);
+                        setViewerType(employee.aadharUrl.endsWith('.pdf') ? 'pdf' : 'image');
+                        setViewerTitle('Aadhar Scan');
+                        setViewerOpen(true);
+                      }}
+                    >
+                      View Document
+                    </button>
                   ) : (
                     <span className="text-gray-400">Not uploaded</span>
                   )}
@@ -143,6 +163,13 @@ const EmployeeDetailsDialog: React.FC<EmployeeDetailsDialogProps> = ({ open, onO
           </div>
         </div>
       </DialogContent>
+      <FileViewerDialog
+        open={viewerOpen}
+        onOpenChange={setViewerOpen}
+        file={viewerFile}
+        type={viewerType}
+        title={viewerTitle}
+      />
     </Dialog>
   );
 };

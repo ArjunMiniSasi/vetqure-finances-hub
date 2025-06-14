@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
+import StatusToggleField from '@/components/ui/StatusToggleField';
 import { VendorType, VendorStatus, VendorFormData } from '@/types/vendor';
 
 const VENDOR_TYPES = [
@@ -126,25 +126,12 @@ const VendorForm: React.FC<VendorFormProps> = ({
           />
 
           {/* Status */}
-          <FormField
+          <StatusToggleField
             control={form.control}
             name="status"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 h-full">
-                <div className="space-y-0.5">
-                  <FormLabel className="text-base">Status</FormLabel>
-                  <div className="text-sm text-gray-500">
-                    {field.value === 'active' ? 'Vendor is active' : 'Vendor is inactive'}
-                  </div>
-                </div>
-                <FormControl>
-                  <Switch
-                    checked={field.value === 'active'}
-                    onCheckedChange={(checked) => field.onChange(checked ? 'active' : 'inactive')}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
+            activeLabel="Vendor is active"
+            inactiveLabel="Vendor is inactive"
+            label="Status"
           />
 
           {/* GST Number */}

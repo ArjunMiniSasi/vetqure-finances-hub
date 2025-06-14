@@ -220,7 +220,7 @@ const EmployeeList = () => {
         </CardContent>
       </Card>
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-        <DialogContent className="max-w-4xl w-full h-[80vh] max-h-[80vh] flex flex-col p-0 rounded-xl shadow-xl">
+        <DialogContent className="w-[50vw] max-w-[95vw] max-h-[80vh] flex flex-col p-0 rounded-xl shadow-xl">
           <div className="flex flex-col px-8 py-5 border-b">
             <DialogTitle className="text-2xl font-bold">Add New Employee</DialogTitle>
             <DialogDescription className="text-gray-500 text-sm mt-1">Fill out the form to add a new employee. All fields marked * are required.</DialogDescription>

@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import StatusToggleField from '@/components/ui/StatusToggleField';
 
 const GENDER_OPTIONS = ['Male', 'Female', 'Other'];
 const STATUS_OPTIONS = ['active', 'inactive', 'terminated'];
@@ -184,31 +185,14 @@ const EmployeeForm = ({ initialData = {}, onSubmit, isSubmitting }: {
         </div>
         <div>
           <Label>Status</Label>
-          <div className="flex items-center gap-6 mt-2">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="status"
-                value="active"
-                checked={form.status === 'active'}
-                onChange={handleChange}
-                className="accent-blue-600"
-                required
-              />
-              <span>Active</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="status"
-                value="inactive"
-                checked={form.status === 'inactive'}
-                onChange={handleChange}
-                className="accent-blue-600"
-                required
-              />
-              <span>Inactive</span>
-            </label>
+          <div className="mt-2">
+            <StatusToggleField
+              value={form.status}
+              onChange={(status) => setForm(prev => ({ ...prev, status }))}
+              activeLabel="Employee is active"
+              inactiveLabel="Employee is inactive"
+              label="Status"
+            />
           </div>
         </div>
       </div>

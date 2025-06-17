@@ -11,6 +11,7 @@ const LoginScreen: React.FC = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loadingState, setLoadingState] = useState(false);
+  const [showRegAlert, setShowRegAlert] = useState(false);
 
   useEffect(() => {
     if (!loading && user) {
@@ -33,6 +34,12 @@ const LoginScreen: React.FC = () => {
     }
   };
 
+  const handleCreateAccountClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setShowRegAlert(true);
+    setTimeout(() => setShowRegAlert(false), 3500);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 bg-white/80 backdrop-blur-xl p-8 rounded-2xl shadow-xl border border-gray-200">
@@ -49,6 +56,12 @@ const LoginScreen: React.FC = () => {
             Sign in to your account to continue
           </p>
         </div>
+
+        {showRegAlert && (
+          <div className="mb-4 rounded-xl bg-yellow-50 p-4 border border-yellow-200 text-yellow-800 text-sm text-center animate-fade-in-out">
+            Registrations are not available for all. For more information, contact the admin.
+          </div>
+        )}
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
@@ -103,12 +116,13 @@ const LoginScreen: React.FC = () => {
               </Link>
             </div>
             <div className="text-sm">
-              <Link
-                to="/register"
+              <a
+                href="#"
+                onClick={handleCreateAccountClick}
                 className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
               >
                 Create an account
-              </Link>
+              </a>
             </div>
           </div>
 

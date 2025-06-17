@@ -155,7 +155,10 @@ const Layout: React.FC = () => {
             }`}
           >
             <div className="flex h-16 items-center justify-between px-4">
-              <h1 className="text-xl font-semibold text-gray-900">VetQure</h1>
+              <div className="flex items-center space-x-2">
+                <img src="/assets/logo.png" alt="VetQure Logo" className="w-8 h-8 object-contain" />
+                <h1 className="text-xl font-semibold text-gray-900">VetQure</h1>
+              </div>
               <button
                 onClick={() => setIsSidebarOpen(false)}
                 className="text-gray-500 hover:text-gray-600"
@@ -183,7 +186,10 @@ const Layout: React.FC = () => {
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
         <div className="flex min-h-0 flex-1 flex-col border-r border-gray-200 bg-white">
           <div className="flex h-16 items-center px-4">
-            <h1 className="text-xl font-semibold text-gray-900">VetQure</h1>
+            <div className="flex items-center space-x-2">
+              <img src="/assets/logo.png" alt="VetQure Logo" className="w-8 h-8 object-contain" />
+              <h1 className="text-xl font-semibold text-gray-900">VetQure</h1>
+            </div>
           </div>
           <nav className="flex-1 space-y-1 px-2 py-4">
             {navigation.map(renderNavItem)}

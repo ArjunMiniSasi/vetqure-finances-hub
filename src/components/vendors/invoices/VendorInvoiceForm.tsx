@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -15,26 +15,28 @@ import { Eye } from 'lucide-react';
 
 const currencyOptions = ['INR', 'USD', 'EUR', 'GBP'] as const;
 
-const invoiceFormSchema = z.object({
+// Dynamic schema for create/edit
+const baseSchema = z.object({
+  invoiceId: z.string().min(1, 'Invoice ID is required'),
   vendorId: z.string().min(1, 'Vendor is required'),
   invoiceDate: z.date({ required_error: 'Invoice date is required' }),
   serviceEndDate: z.date().optional(),
   currency: z.enum(currencyOptions),
   amount: z.number().min(1, 'Amount must be greater than 0'),
-  invoiceFile: z.any().refine((file) => file instanceof File, 'Invoice file is required'),
+  invoiceFile: z.any(),
   receiptFile: z.any().optional(),
 });
-
-type InvoiceFormData = z.infer<typeof invoiceFormSchema>;
+type InvoiceFormData = z.infer<typeof baseSchema> & { vendorName?: string };
 
 interface VendorInvoiceFormProps {
   vendors: Vendor[];
   onSubmit: (data: InvoiceFormData) => void;
   onCancel: () => void;
   isSubmitting?: boolean;
+  initialData?: Partial<InvoiceFormData & { invoiceUrl?: string; receiptUrl?: string }>;
 }
 
-const VendorInvoiceForm: React.FC<VendorInvoiceFormProps> = ({ vendors, onSubmit, onCancel, isSubmitting = false }) => {
+const VendorInvoiceForm: React.FC<VendorInvoiceFormProps> = ({ vendors, onSubmit, onCancel, isSubmitting = false, initialData }) => {
   const [submitting, setSubmitting] = useState(false);
   const [vendorSearch, setVendorSearch] = useState('');
   const [vendorDropdownOpen, setVendorDropdownOpen] = useState(false);
@@ -47,9 +49,18 @@ const VendorInvoiceForm: React.FC<VendorInvoiceFormProps> = ({ vendors, onSubmit
   const [viewerType, setViewerType] = useState<'pdf' | 'image'>('pdf');
   const [viewerTitle, setViewerTitle] = useState<string>('');
 
+  const schema = useMemo(() => {
+    return baseSchema.extend({
+      invoiceFile: initialData && initialData.invoiceUrl
+        ? z.any().optional()
+        : z.any().refine((file) => file instanceof File, 'Invoice file is required'),
+    });
+  }, [initialData]);
+
   const form = useForm<InvoiceFormData>({
-    resolver: zodResolver(invoiceFormSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
+      invoiceId: '',
       vendorId: '',
       invoiceDate: undefined,
       serviceEndDate: undefined,
@@ -60,10 +71,34 @@ const VendorInvoiceForm: React.FC<VendorInvoiceFormProps> = ({ vendors, onSubmit
     },
   });
 
+  // Populate form with initialData if provided
+  useEffect(() => {
+    if (initialData) {
+      form.reset({
+        ...initialData,
+        invoiceDate: initialData.invoiceDate && typeof initialData.invoiceDate === 'object' && initialData.invoiceDate !== null && 'seconds' in (initialData.invoiceDate as any)
+          ? new Date((initialData.invoiceDate as any).seconds * 1000)
+          : initialData.invoiceDate,
+        serviceEndDate: initialData.serviceEndDate && typeof initialData.serviceEndDate === 'object' && initialData.serviceEndDate !== null && 'seconds' in (initialData.serviceEndDate as any)
+          ? new Date((initialData.serviceEndDate as any).seconds * 1000)
+          : initialData.serviceEndDate,
+      });
+      // Set vendor search to vendor name if available
+      if (initialData.vendorId) {
+        const vendor = vendors.find(v => v.id === initialData.vendorId);
+        if (vendor) setVendorSearch(vendor.name);
+      }
+    }
+    // eslint-disable-next-line
+  }, [initialData, vendors]);
+
   const handleSubmit = async (data: InvoiceFormData) => {
     setSubmitting(true);
     try {
-      await onSubmit(data);
+      // Look up vendor name
+      const vendor = vendors.find(v => v.id === data.vendorId);
+      const vendorName = vendor ? vendor.name : '';
+      await onSubmit({ ...data, vendorName });
     } finally {
       setSubmitting(false);
     }
@@ -80,6 +115,21 @@ const VendorInvoiceForm: React.FC<VendorInvoiceFormProps> = ({ vendors, onSubmit
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Invoice ID */}
+          <FormField
+            control={form.control}
+            name="invoiceId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Invoice ID</FormLabel>
+                <FormControl>
+                  <Input placeholder="Enter invoice ID" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
           {/* Searchable Vendor Dropdown */}
           <FormField
             control={form.control}

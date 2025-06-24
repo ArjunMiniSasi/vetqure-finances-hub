@@ -31,7 +31,9 @@ export interface Vendor {
 
 export interface VendorInvoice {
     id: string;
+    invoiceId: string;
     vendorId: string;
+    vendorName: string;
     invoiceDate: Date;
     serviceEndDate?: Date;
     currency: Currency;

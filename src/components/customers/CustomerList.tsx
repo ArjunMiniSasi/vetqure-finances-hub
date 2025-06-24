@@ -167,7 +167,14 @@ const CustomerList: React.FC = () => {
       }
       setIsModalOpen(false);
       resetForm();
-      fetchPage();
+      
+      // Reset pagination and fetch first page
+      setLastDoc(null);
+      setPrevDocs([]);
+      setCurrentPage(1);
+      setIsLastPage(false);
+      await fetchPage('next', '', true);
+      
     } catch (error) {
       toast.error(editingCustomer ? 'Failed to update customer' : 'Failed to add customer');
       console.error('Error:', error);

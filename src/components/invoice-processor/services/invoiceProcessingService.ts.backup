@@ -1,0 +1,293 @@
+// Main Invoice Processing Service - Orchestrates the entire workflow
+
+import {
+    ExtractedInvoiceData,
+    VendorMatchResult,
+    ProcessingResult,
+    ProcessingStatus,
+    UploadedFile
+} from '../types/extractionTypes';
+import { Vendor } from '@/types/vendor';
+import { geminiInvoiceService } from './geminiInvoiceService';
+import { vendorMatchingService } from './vendorMatchingService';
+import { extractTextFromPDF, cleanExtractedText } from '../utils/pdfUtils';
+import { getVendorsPaginated } from '@/services/vendorService';
+import { addDoc, collection } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '@/config/firebase';
+import { Timestamp } from 'firebase/firestore';
+
+export class InvoiceProcessingService {
+
+    /**
+     * Process a single invoice file through the complete workflow
+     */
+    async processInvoice(
+        file: File,
+        onProgress?: (status: ProcessingStatus, message: string, progress: number) => void
+    ): Promise<ProcessingResult> {
+        const startTime = Date.now();
+
+        try {
+            // Step 1: Upload and extract text
+            onProgress?.('uploading', 'Uploading PDF file...', 10);
+            const uploadedFile = await this.uploadFile(file);
+
+            onProgress?.('extracting', 'Extracting text from PDF...', 20);
+            const pdfText = await extractTextFromPDF(file);
+            const cleanedText = cleanExtractedText(pdfText);
+
+            if (cleanedText.length < 50) {
+                throw new Error('Insufficient text extracted from PDF. The file might be scanned or corrupted.');
+            }
+
+            // Step 2: AI-powered data extraction
+            onProgress?.('analyzing', 'Analyzing invoice with AI...', 40);
+            const extractedData = await geminiInvoiceService.extractInvoiceData(cleanedText);
+
+            // Step 3: Validate extracted data
+            onProgress?.('analyzing', 'Validating extracted data...', 60);
+            const validation = await geminiInvoiceService.validateExtractedData(extractedData);
+
+            if (!validation.isValid) {
+                console.warn('Validation warnings:', validation.errors);
+            }
+
+            // Step 4: Get existing vendors for matching
+            onProgress?.('matching_vendor', 'Loading existing vendors...', 70);
+            const { vendors } = await getVendorsPaginated(1000); // Get all vendors for matching
+
+            // Step 5: Match or create vendor
+            onProgress?.('matching_vendor', 'Matching vendor...', 80);
+            const vendorMatch = await vendorMatchingService.matchVendor(extractedData, vendors);
+
+            let vendorId: string;
+
+            if (vendorMatch.type === 'exact_match' || vendorMatch.type === 'fuzzy_match') {
+                vendorId = vendorMatch.vendor!.id;
+                console.log('Matched existing vendor:', vendorMatch.vendor!.name);
+            } else {
+                // Create new vendor
+                onProgress?.('matching_vendor', 'Creating new vendor...', 85);
+                vendorId = await vendorMatchingService.createVendorFromExtractedData(extractedData);
+                console.log('Created new vendor with ID:', vendorId);
+            }
+
+            // Step 6: Save invoice to database
+            onProgress?.('saving', 'Saving invoice...', 90);
+            const invoiceId = await this.saveInvoiceToDatabase(extractedData, vendorId, uploadedFile);
+
+            // Step 7: Complete
+            onProgress?.('completed', 'Processing completed successfully!', 100);
+
+            const processingTime = Date.now() - startTime;
+
+            return {
+                success: true,
+                extractedData,
+                vendorMatch,
+                invoiceId,
+                vendorId,
+                processingTime,
+                timestamp: new Date()
+            };
+
+        } catch (error) {
+            console.error('Error processing invoice:', error);
+            onProgress?.('error', `Processing failed: ${error}`, 0);
+
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred',
+                processingTime: Date.now() - startTime,
+                timestamp: new Date()
+            };
+        }
+    }
+
+    /**
+     * Process multiple invoice files
+     */
+    async processMultipleInvoices(
+        files: File[],
+        onProgress?: (fileIndex: number, status: ProcessingStatus, message: string, progress: number) => void,
+        onFileComplete?: (fileIndex: number, result: ProcessingResult) => void
+    ): Promise<ProcessingResult[]> {
+        const results: ProcessingResult[] = [];
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+
+            try {
+                onProgress?.(i, 'uploading', `Processing file ${i + 1} of ${files.length}...`, 0);
+
+                const result = await this.processInvoice(file, (status, message, progress) => {
+                    onProgress?.(i, status, message, progress);
+                });
+
+                results.push(result);
+                onFileComplete?.(i, result);
+
+            } catch (error) {
+                console.error(`Error processing file ${i + 1}:`, error);
+                const errorResult: ProcessingResult = {
+                    success: false,
+                    error: error instanceof Error ? error.message : 'Unknown error',
+                    processingTime: 0,
+                    timestamp: new Date()
+                };
+                results.push(errorResult);
+                onFileComplete?.(i, errorResult);
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * Upload file to Firebase Storage
+     */
+    private async uploadFile(file: File): Promise<{ downloadUrl: string; storagePath: string }> {
+        try {
+            const fileName = `${Date.now()}_${file.name}`;
+            const storagePath = `vendor_invoices/${fileName}`;
+            const storageRef = ref(storage, storagePath);
+
+            const snapshot = await uploadBytes(storageRef, file);
+            const downloadUrl = await getDownloadURL(snapshot.ref);
+
+            return { downloadUrl, storagePath };
+        } catch (error) {
+            console.error('Error uploading file:', error);
+            throw new Error(`Failed to upload file: ${error}`);
+        }
+    }
+
+    /**
+     * Save invoice data to Firestore
+     */
+    private async saveInvoiceToDatabase(
+        extractedData: ExtractedInvoiceData,
+        vendorId: string,
+        uploadedFile: { downloadUrl: string; storagePath: string }
+    ): Promise<string> {
+        try {
+            // Get vendor details for the invoice
+            const { vendors } = await getVendorsPaginated(1000);
+            const vendor = vendors.find(v => v.id === vendorId);
+
+            if (!vendor) {
+                throw new Error('Vendor not found');
+            }
+
+            const invoiceData = {
+                invoiceId: extractedData.invoiceNumber,
+                vendorId: vendorId,
+                vendorName: vendor.name,
+                invoiceDate: Timestamp.fromDate(extractedData.invoiceDate),
+                serviceEndDate: extractedData.serviceEndDate ? Timestamp.fromDate(extractedData.serviceEndDate) : null,
+                currency: extractedData.currency,
+                amount: extractedData.totalAmount,
+                invoiceUrl: uploadedFile.downloadUrl,
+                receiptUrl: null, // Will be added later if receipt is uploaded
+                uploadStatus: 'uploaded' as const,
+                createdAt: Timestamp.fromDate(new Date()),
+
+                // Additional extracted data
+                subtotal: extractedData.subtotal,
+                taxAmount: extractedData.taxAmount || null,
+                dueDate: extractedData.dueDate ? Timestamp.fromDate(extractedData.dueDate) : null,
+                notes: extractedData.notes || null,
+                terms: extractedData.terms || null,
+
+                // Vendor details from extraction (for reference)
+                extractedVendorEmail: extractedData.vendorEmail || null,
+                extractedVendorPhone: extractedData.vendorPhone || null,
+                extractedVendorGstNumber: extractedData.vendorGstNumber || null,
+                extractedVendorAddress: extractedData.vendorAddress || null,
+
+                // Processing metadata
+                processingConfidence: extractedData.confidence.overall,
+                extractedAt: Timestamp.fromDate(new Date())
+            };
+
+            const docRef = await addDoc(collection(db, 'vendor_invoices'), invoiceData);
+            console.log('Invoice saved with ID:', docRef.id);
+
+            return docRef.id;
+        } catch (error) {
+            console.error('Error saving invoice to database:', error);
+            throw new Error(`Failed to save invoice: ${error}`);
+        }
+    }
+
+    /**
+     * Get processing statistics
+     */
+    async getProcessingStats(): Promise<{
+        totalProcessed: number;
+        successful: number;
+        failed: number;
+        averageProcessingTime: number;
+    }> {
+        // This would typically query a processing history collection
+        // For now, return mock data
+        return {
+            totalProcessed: 0,
+            successful: 0,
+            failed: 0,
+            averageProcessingTime: 0
+        };
+    }
+
+    /**
+     * Retry processing a failed invoice
+     */
+    async retryProcessing(
+        file: File,
+        previousError?: string,
+        onProgress?: (status: ProcessingStatus, message: string, progress: number) => void
+    ): Promise<ProcessingResult> {
+        console.log('Retrying processing with previous error:', previousError);
+        return this.processInvoice(file, onProgress);
+    }
+
+    /**
+     * Validate file before processing
+     */
+    validateFile(file: File): { isValid: boolean; errors: string[] } {
+        const errors: string[] = [];
+
+        // Check file type
+        if (file.type !== 'application/pdf') {
+            errors.push('File must be a PDF');
+        }
+
+        // Check file size (10MB limit)
+        const maxSize = 10 * 1024 * 1024;
+        if (file.size > maxSize) {
+            errors.push('File size must be less than 10MB');
+        }
+
+        // Check if file is empty
+        if (file.size === 0) {
+            errors.push('File cannot be empty');
+        }
+
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
+    }
+
+    /**
+     * Cancel processing (for future implementation)
+     */
+    cancelProcessing(): void {
+        // Implementation for canceling ongoing processing
+        console.log('Processing cancellation requested');
+    }
+}
+
+// Export singleton instance
+export const invoiceProcessingService = new InvoiceProcessingService(); 

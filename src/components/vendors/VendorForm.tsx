@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -22,6 +22,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import StatusToggleField from '@/components/ui/StatusToggleField';
 import { VendorType, VendorStatus, VendorFormData } from '@/types/vendor';
+import { Loader2 } from 'lucide-react';
 
 const VENDOR_TYPES = [
   'Goods',
@@ -72,13 +73,30 @@ const VendorForm: React.FC<VendorFormProps> = ({
   });
 
   const handleSubmit = async (data: VendorFormData) => {
+    console.log('VendorForm: Starting form submission');
+    console.log('VendorForm: Initial form data:', data);
+    console.log('VendorForm: Form state:', form.getValues());
+    console.log('VendorForm: Initial data provided:', initialData);
+    console.log('VendorForm: Current submitting state:', submitting);
+    console.log('VendorForm: Current isSubmitting prop:', isSubmitting);
+    
     setSubmitting(true);
     try {
       await onSubmit(data);
+      console.log('VendorForm: Form submission successful');
+    } catch (error) {
+      console.error('VendorForm: Form submission failed:', error);
+      throw error;
     } finally {
       setSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (initialData) {
+      form.reset(initialData);
+    }
+  }, [initialData, form]);
 
   return (
     <Form {...form}>
@@ -106,7 +124,7 @@ const VendorForm: React.FC<VendorFormProps> = ({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Vendor Type</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select vendor type" />
@@ -205,7 +223,14 @@ const VendorForm: React.FC<VendorFormProps> = ({
             Cancel
           </Button>
           <Button type="submit" disabled={submitting || isSubmitting}>
-            {(submitting || isSubmitting) ? 'Saving...' : 'Save Vendor'}
+            {(submitting || isSubmitting) ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Save Vendor'
+            )}
           </Button>
         </div>
       </form>

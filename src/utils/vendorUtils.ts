@@ -70,12 +70,20 @@ const isValidGST = (gst: string): boolean => {
 };
 
 // Firebase document conversion utilities
-export const vendorToDocument = (vendor: Vendor): VendorDocument => {
-    return {
-        ...vendor,
-        createdAt: Timestamp.fromDate(vendor.createdAt),
-        updatedAt: Timestamp.fromDate(vendor.updatedAt),
-    };
+export const vendorToDocument = (vendor: Partial<Vendor>): Partial<VendorDocument> => {
+    const doc = { ...vendor } as any;
+    delete doc.createdAt;
+    delete doc.updatedAt;
+
+    // Only convert dates if they exist
+    if (vendor.createdAt) {
+        doc.createdAt = Timestamp.fromDate(vendor.createdAt);
+    }
+    if (vendor.updatedAt) {
+        doc.updatedAt = Timestamp.fromDate(vendor.updatedAt);
+    }
+
+    return doc;
 };
 
 export const documentToVendor = (doc: VendorDocument): Vendor => {

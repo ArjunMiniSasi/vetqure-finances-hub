@@ -95,26 +95,30 @@ export const searchEmployeesPaginatedByName = async (
     lastDoc?: QueryDocumentSnapshot<DocumentData> | null
 ) => {
     try {
+        // For now, fetch a page and filter client-side (Firestore text search is limited)
         const employeesRef = collection(db, EMPLOYEES_COLLECTION);
         let q = query(
             employeesRef,
-            orderBy('name'),
-            startAt(searchTerm),
-            endAt(searchTerm + '\uf8ff'),
+            orderBy('createdAt', 'desc'),
             limit(pageSize)
         );
         if (lastDoc) {
             q = query(
                 employeesRef,
-                orderBy('name'),
-                startAt(searchTerm),
-                endAt(searchTerm + '\uf8ff'),
+                orderBy('createdAt', 'desc'),
                 startAfter(lastDoc),
                 limit(pageSize)
             );
         }
         const snapshot = await getDocs(q);
-        const employees = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as object) }) as Employee);
+        let employees = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as object) }) as Employee);
+
+        // Filter employees by firstName or lastName
+        employees = employees.filter((employee) =>
+            employee.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            employee.lastName?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
         return {
             employees,
             lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,

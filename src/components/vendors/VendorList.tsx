@@ -22,21 +22,21 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 const PAGE_SIZE = 10;
 
 const VendorList: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const { toast } = useToast();
-  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isAddLoading, setIsAddLoading] = useState(false);
+  const [isEditLoading, setIsEditLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [prevDocs, setPrevDocs] = useState<QueryDocumentSnapshot<DocumentData>[]>([]);
+  const [isLastPage, setIsLastPage] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [editVendor, setEditVendor] = useState<Vendor | null>(null);
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(PAGE_SIZE);
-  const [lastDoc, setLastDoc] = useState<any>(null);
-  const [prevDocs, setPrevDocs] = useState<any[]>([]);
-  const [isLastPage, setIsLastPage] = useState(false);
-  const [isFirstPage, setIsFirstPage] = useState(true);
+  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
+  const { toast } = useToast();
 
   // Fetch paginated vendors
   const fetchVendors = async (direction: 'next' | 'prev' = 'next', reset = false) => {
@@ -53,11 +53,11 @@ const VendorList: React.FC = () => {
           } else if (reset) {
             setCurrentPage(1);
           }
-          result = await searchVendorsPaginatedByName(searchTerm, pageSize, reset ? null : lastDoc);
+          result = await searchVendorsPaginatedByName(searchTerm, PAGE_SIZE, reset ? null : lastDoc);
         } else if (direction === 'prev') {
           newPrevDocs.pop();
           const prevDoc = newPrevDocs.length > 0 ? newPrevDocs[newPrevDocs.length - 1] : null;
-          result = await searchVendorsPaginatedByName(searchTerm, pageSize, prevDoc);
+          result = await searchVendorsPaginatedByName(searchTerm, PAGE_SIZE, prevDoc);
           setCurrentPage((prev) => Math.max(1, prev - 1));
         }
       } else {
@@ -68,15 +68,15 @@ const VendorList: React.FC = () => {
           } else if (reset) {
             setCurrentPage(1);
           }
-          result = await getVendorsPaginated(pageSize, reset ? null : lastDoc, 'next');
+          result = await getVendorsPaginated(PAGE_SIZE, reset ? null : lastDoc, 'next');
         } else if (direction === 'prev') {
           newPrevDocs.pop();
           const prevDoc = newPrevDocs.length > 0 ? newPrevDocs[newPrevDocs.length - 1] : null;
-          result = await getVendorsPaginated(pageSize, prevDoc, 'next');
+          result = await getVendorsPaginated(PAGE_SIZE, prevDoc, 'next');
           setCurrentPage((prev) => Math.max(1, prev - 1));
         } else {
           setCurrentPage(1);
-          result = await getVendorsPaginated(pageSize, null, 'init');
+          result = await getVendorsPaginated(PAGE_SIZE, null, 'init');
         }
       }
       setVendors(result.vendors);
@@ -119,9 +119,12 @@ const VendorList: React.FC = () => {
   };
 
   const handleAddVendor = async (data: Omit<Vendor, 'id' | 'createdAt' | 'updatedAt'>) => {
+    setIsAddLoading(true);
     try {
       await createVendor(data);
       setIsAddModalOpen(false);
+      // Refresh the vendors list to show the new vendor
+      fetchVendors('next', true);
       toast({
         title: 'Success',
         description: 'Vendor added successfully',
@@ -133,26 +136,56 @@ const VendorList: React.FC = () => {
         description: 'Failed to add vendor. Please try again.',
         variant: 'destructive',
       });
+    } finally {
+      setIsAddLoading(false);
     }
   };
 
   const handleEditVendor = async (data: Partial<Vendor>) => {
     if (!editVendor) return;
+    console.log('VendorList: Starting edit vendor process');
+    console.log('VendorList: Original vendor data:', editVendor);
+    console.log('VendorList: Edit vendor data:', data);
+    console.log('VendorList: Edit vendor ID:', editVendor.id);
+    
+    setIsEditLoading(true);
     try {
-      await updateVendor(editVendor.id, data);
+      // Only include fields that have changed
+      const changedFields = Object.entries(data).reduce((acc, [key, value]) => {
+        if (value !== editVendor[key as keyof Vendor]) {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as Record<string, any>);
+
+      console.log('VendorList: Changed fields:', changedFields);
+      
+      if (Object.keys(changedFields).length === 0) {
+        console.log('VendorList: No changes detected');
+        setIsEditOpen(false);
+        setEditVendor(null);
+        return;
+      }
+
+      await updateVendor(editVendor.id, changedFields);
+      console.log('VendorList: Vendor updated successfully');
       setIsEditOpen(false);
       setEditVendor(null);
+      // Refresh the vendors list to show updated data
+      await fetchVendors('next', true);
       toast({
         title: 'Success',
         description: 'Vendor details updated successfully',
       });
     } catch (error) {
-      console.error('Error updating vendor:', error);
+      console.error('VendorList: Error updating vendor:', error);
       toast({
         title: 'Error',
         description: 'Failed to update vendor. Please try again.',
         variant: 'destructive',
       });
+    } finally {
+      setIsEditLoading(false);
     }
   };
 
@@ -301,6 +334,7 @@ const VendorList: React.FC = () => {
           <VendorForm
             onSubmit={handleAddVendor}
             onCancel={() => setIsAddModalOpen(false)}
+            isSubmitting={isAddLoading}
           />
         </DialogContent>
       </Dialog>
@@ -313,7 +347,7 @@ const VendorList: React.FC = () => {
             initialData={editVendor || undefined}
             onSubmit={handleEditVendor}
             onCancel={() => { setIsEditOpen(false); setEditVendor(null); }}
-            isSubmitting={false}
+            isSubmitting={isEditLoading}
           />
         </DialogContent>
       </Dialog>

@@ -16,6 +16,8 @@ export type Currency = 'INR' | 'USD' | 'EUR' | 'GBP';
 
 export type UploadStatus = 'pending' | 'uploaded';
 
+// export type PaymentStatus = 'pending' | 'paid' | 'overdue';
+
 export interface Vendor {
     id: string;
     name: string;

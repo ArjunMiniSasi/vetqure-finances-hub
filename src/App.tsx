@@ -15,6 +15,8 @@ import VendorInvoices from './components/vendors/invoices/VendorInvoices';
 import Reports from './components/Reports';
 import Settings from './components/Settings';
 import EmployeeList from './components/employees/EmployeeList';
+import { TestDueDateAlerts } from './components/TestDueDateAlerts';
+import { DebugNotificationSystem } from './components/DebugNotificationSystem';
 
 const App: React.FC = () => {
   return (
@@ -43,6 +45,10 @@ const App: React.FC = () => {
             <Route path="/settings" element={<Settings />} />
 
             <Route path="/team/employees" element={<EmployeeList />} />
+            
+            {/* Test routes for due date alerts */}
+            <Route path="/test-due-date-alerts" element={<TestDueDateAlerts />} />
+            <Route path="/debug-notifications" element={<DebugNotificationSystem />} />
           </Route>
 
           {/* Redirect root to dashboard */}

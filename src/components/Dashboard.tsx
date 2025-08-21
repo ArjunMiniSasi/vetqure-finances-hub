@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BarChart3, DollarSign, Users, FileText } from 'lucide-react';
+import { BarChart3, DollarSign, Users, FileText, TrendingUp, Calendar, AlertTriangle, Clock } from 'lucide-react';
 import { getCustomers, getAllInvoices, getAllReceipts } from '@/services/firestoreService';
 import AddInvoiceModal from '@/components/customers/invoices/AddInvoiceModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast';
 import { addCustomer, checkCustomerExistsByEmail } from '@/services/firestoreService';
 import { Timestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
+import { DueDateAlerts } from './DueDateAlerts';
 
 const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -130,7 +131,7 @@ const Dashboard: React.FC = () => {
   const currencySymbols: { [currency: string]: string } = { INR: '₹', USD: '$' };
 
   const stats = [
-    // Revenue cards for each currency
+    // Revenue cards for each currency (prioritized first)
     ...Object.entries(revenueByCurrency).map(([currency, amount]) => ({
       name: `Total Revenue (${currency})`,
       value: loading ? '...' : `${currencySymbols[currency] || currency + ' '} ${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
@@ -144,16 +145,16 @@ const Dashboard: React.FC = () => {
       icon: Users,
     },
     {
-      name: 'Pending Invoices',
-      value: loading ? '...' : pendingInvoices,
-      change: '',
-      icon: FileText,
-    },
-    {
       name: 'Monthly Growth',
       value: loading ? '...' : `${monthlyGrowth >= 0 ? '+' : ''}${monthlyGrowth.toFixed(1)}%`,
       change: '',
       icon: BarChart3,
+    },
+    {
+      name: 'Pending Invoices',
+      value: loading ? '...' : pendingInvoices,
+      change: '',
+      icon: FileText,
     },
   ];
 
@@ -198,16 +199,18 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
-        <div className="flex items-center space-x-4">
-          <button className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-            Generate Report
-          </button>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+        <div className="flex gap-2">
+          <Button variant="outline">
+            <Calendar className="w-4 h-4 mr-2" />
+            Today
+          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -302,6 +305,9 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Due Date Alerts - Move this below the above sections */}
+      <DueDateAlerts />
 
       <Dialog open={isAddClientOpen} onOpenChange={setIsAddClientOpen}>
         <DialogContent className="max-w-2xl">

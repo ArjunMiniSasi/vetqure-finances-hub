@@ -35,6 +35,51 @@ const verifyEnvVariables = () => {
     // });
 };
 
+// Function to create Firebase configuration
+const createFirebaseConfig = (config?: {
+    apiKey?: string;
+    authDomain?: string;
+    projectId?: string;
+    storageBucket?: string;
+    messagingSenderId?: string;
+    appId?: string;
+    measurementId?: string;
+}) => {
+    return {
+        apiKey: config?.apiKey || import.meta.env.VITE_FIREBASE_API_KEY,
+        authDomain: config?.authDomain || import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+        projectId: config?.projectId || import.meta.env.VITE_FIREBASE_PROJECT_ID,
+        storageBucket: config?.storageBucket || import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: config?.messagingSenderId || import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+        appId: config?.appId || import.meta.env.VITE_FIREBASE_APP_ID,
+        measurementId: config?.measurementId || import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+    };
+};
+
+// Function to initialize Firebase with custom configuration
+export const initializeFirebase = (config?: {
+    apiKey?: string;
+    authDomain?: string;
+    projectId?: string;
+    storageBucket?: string;
+    messagingSenderId?: string;
+    appId?: string;
+    measurementId?: string;
+    appName?: string;
+}) => {
+    const firebaseConfig = createFirebaseConfig(config);
+    const appName = config?.appName || '[DEFAULT]';
+
+    const app = initializeApp(firebaseConfig, appName);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+
+    console.log(`Firebase initialized successfully for project: ${firebaseConfig.projectId}`);
+
+    return { app, auth, db, storage };
+};
+
 let app;
 let auth;
 let db;
@@ -44,15 +89,7 @@ try {
     // Verify environment variables before initializing Firebase
     verifyEnvVariables();
 
-    const firebaseConfig = {
-        apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-        storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-        messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-        appId: import.meta.env.VITE_FIREBASE_APP_ID,
-        measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
-    };
+    const firebaseConfig = createFirebaseConfig();
 
     // Initialize Firebase
     app = initializeApp(firebaseConfig);

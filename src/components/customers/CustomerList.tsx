@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from 'react-hot-toast';
-import { Customer, addCustomer, getCustomers, updateCustomer, getCustomersPaginated, checkCustomerExistsByEmail, getCustomersPaginatedByName } from '@/services/firestoreService';
+import { Customer, addCustomer, getCustomers, updateCustomer, getCustomersPaginated, checkCustomerExistsByEmail, getCustomersPaginatedByName, getCustomersPaginatedByNameCaseInsensitive } from '@/services/firestoreService';
 import { Timestamp } from 'firebase/firestore';
 import StatusToggleField from '@/components/ui/StatusToggleField';
 
@@ -60,7 +60,7 @@ const CustomerList: React.FC = () => {
           } else if (reset) {
             setCurrentPage(1);
           }
-          const { customers: pageCustomers, lastDoc: newLastDoc } = await getCustomersPaginatedByName(search, PAGE_SIZE, reset ? null : lastDoc);
+          const { customers: pageCustomers, lastDoc: newLastDoc } = await getCustomersPaginatedByNameCaseInsensitive(search, PAGE_SIZE, reset ? null : lastDoc);
           setCustomers(pageCustomers);
           setLastDoc(newLastDoc);
           setPrevDocs(newPrevDocs);
@@ -68,7 +68,7 @@ const CustomerList: React.FC = () => {
         } else if (direction === 'prev') {
           newPrevDocs.pop();
           const prevDoc = newPrevDocs.length > 0 ? newPrevDocs[newPrevDocs.length - 1] : null;
-          const { customers: pageCustomers, lastDoc: newLastDoc } = await getCustomersPaginatedByName(search, PAGE_SIZE, prevDoc);
+          const { customers: pageCustomers, lastDoc: newLastDoc } = await getCustomersPaginatedByNameCaseInsensitive(search, PAGE_SIZE, prevDoc);
           setCustomers(pageCustomers);
           setLastDoc(newLastDoc);
           setPrevDocs(newPrevDocs);

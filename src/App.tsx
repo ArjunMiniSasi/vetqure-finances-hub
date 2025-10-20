@@ -17,6 +17,7 @@ import Settings from './components/Settings';
 import EmployeeList from './components/employees/EmployeeList';
 import { TestDueDateAlerts } from './components/TestDueDateAlerts';
 import { DebugNotificationSystem } from './components/DebugNotificationSystem';
+import { MigrationRunner } from './components/MigrationRunner';
 
 const App: React.FC = () => {
   return (
@@ -49,6 +50,9 @@ const App: React.FC = () => {
             {/* Test routes for due date alerts */}
             <Route path="/test-due-date-alerts" element={<TestDueDateAlerts />} />
             <Route path="/debug-notifications" element={<DebugNotificationSystem />} />
+            
+            {/* Migration route - temporary */}
+            <Route path="/migration" element={<MigrationRunner />} />
           </Route>
 
           {/* Redirect root to dashboard */}

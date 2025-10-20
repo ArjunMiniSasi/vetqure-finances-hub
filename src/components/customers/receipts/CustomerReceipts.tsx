@@ -96,6 +96,9 @@ const CustomerReceipts: React.FC = () => {
   };
 
   const generateReceiptHTML = (receipt: Receipt, customer: Customer) => {
+    // Use the current invoice number for display (handles both old and new structure)
+    const displayInvoiceNumber = receipt.invoice_id || 'N/A';
+    
     return `
       <div style="position: relative; font-family: 'Inter', Arial, sans-serif; max-width: 700px; margin: 0 auto; padding: 40px 32px 32px 32px; color: #222; background: #fff;">
         <!-- Watermark -->
@@ -107,7 +110,7 @@ const CustomerReceipts: React.FC = () => {
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 32px; gap: 32px;">
             <div style="flex: 1; min-width: 180px; font-size: 14px;">
-              <div style="margin-bottom: 8px;"><span style="font-weight: 600;">Invoice number</span><br>${receipt.invoice_id}</div>
+              <div style="margin-bottom: 8px;"><span style="font-weight: 600;">Invoice number</span><br>${displayInvoiceNumber}</div>
               <div style="margin-bottom: 8px;"><span style="font-weight: 600;">Transaction Ref No</span><br>${receipt.reference_number}</div>
               <div style="margin-bottom: 8px;"><span style="font-weight: 600;">Date paid</span><br>${receipt.date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</div>
               <div style="margin-bottom: 8px;"><span style="font-weight: 600;">Payment method</span><br>${receipt.method ? receipt.method.charAt(0).toUpperCase() + receipt.method.slice(1) : ''}</div>

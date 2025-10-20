@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from 'react-hot-toast';
-import { Invoice, InvoiceItem, addInvoice, getAllInvoices, Customer, getCustomers, addReceipt, updateInvoiceStatus, updateCustomerRenewalDate } from '@/services/firestoreService';
+import { Invoice, InvoiceItem, addInvoice, getAllInvoices, Customer, getCustomers, addReceipt, updateInvoiceStatus, updateCustomerRenewalDate, updateInvoice, deleteInvoice } from '@/services/firestoreService';
 import { Timestamp } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import html2pdf from 'html2pdf.js';
@@ -14,6 +14,7 @@ import { printInvoiceHtml } from '@/print/printInvoiceHtml';
 import InvoiceTable from './InvoiceTable';
 import InvoiceDetailsModal from './InvoiceDetailsModal';
 import AddInvoiceModal from './AddInvoiceModal';
+import EditInvoiceModal from './EditInvoiceModal';
 
 const currencyOptions = [
   { code: 'INR', symbol: '₹', label: 'INR (₹)' },
@@ -33,6 +34,7 @@ const invoiceHtmlTemplate = ({ invoice, customer }) => `
       <div style="text-align: left;">
         <div style="font-weight: 700; font-size: 2rem; color: #222; margin-bottom: 2px;">VAMS Veterinary Consultancy Pvt Ltd</div>
         <div style="font-size: 15px; color: #888;">KRA-113, Kedaram Nagar, Pattom, Trivandrum</div>
+        <div style="font-size: 13px; color: #666; margin-top: 4px;">GST No: ${invoice.company_gst_number || '32AABCV1234A1Z5'}</div>
       </div>
     </div>
     <div style="display: flex; justify-content: space-between; margin-bottom: 32px;">
@@ -42,6 +44,7 @@ const invoiceHtmlTemplate = ({ invoice, customer }) => `
         <div>${customer.address || ''}</div>
         <div>${customer.email || ''}</div>
         <div>${customer.phone || ''}</div>
+        ${invoice.customer_gst_number ? `<div style="font-size: 13px; color: #666; margin-top: 4px;">GST No: ${invoice.customer_gst_number}</div>` : ''}
       </div>
       <div style="text-align: right;">
         <div style="font-weight: 700; color: #2563eb; margin-bottom: 4px;">Details</div>
@@ -55,31 +58,60 @@ const invoiceHtmlTemplate = ({ invoice, customer }) => `
       <thead>
         <tr>
           <th style="background: #f5f5f5; color: #222; padding: 10px; text-align: left; font-weight: 700; font-size: 15px;">Description</th>
+          <th style="background: #f5f5f5; color: #222; padding: 10px; text-align: center; font-weight: 700; font-size: 15px;">HSN/SAC</th>
           <th style="background: #f5f5f5; color: #222; padding: 10px; text-align: right; font-weight: 700; font-size: 15px;">QTY</th>
           <th style="background: #f5f5f5; color: #222; padding: 10px; text-align: right; font-weight: 700; font-size: 15px;">Rate (${invoice.currency})</th>
-          <th style="background: #f5f5f5; color: #222; padding: 10px; text-align: right; font-weight: 700; font-size: 15px;">Amount (${invoice.currency})</th>
+          <th style="background: #f5f5f5; color: #222; padding: 10px; text-align: right; font-weight: 700; font-size: 15px;">Taxable (${invoice.currency})</th>
+          <th style="background: #f5f5f5; color: #222; padding: 10px; text-align: right; font-weight: 700; font-size: 15px;">GST (${invoice.currency})</th>
+          <th style="background: #f5f5f5; color: #222; padding: 10px; text-align: right; font-weight: 700; font-size: 15px;">Total (${invoice.currency})</th>
         </tr>
       </thead>
       <tbody>
         ${invoice.items.map(item => `
           <tr>
             <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.description}</td>
+            <td style="padding: 10px; text-align: center; border-bottom: 1px solid #eee;">${item.hsn_sac_code || '9987'}</td>
             <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">${item.quantity}</td>
             <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">${item.unit_price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+            <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">${(item.taxable_amount || item.unit_price * item.quantity).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+            <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">${(item.tax_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
             <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">${item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
           </tr>
         `).join('')}
       </tbody>
       <tfoot>
         <tr>
-          <td colspan="3" style="padding: 10px; text-align: right; font-weight: 700; color: #2563eb; font-size: 16px; border-top: 2px solid #eee;">Total</td>
-          <td style="padding: 10px; text-align: right; font-weight: 700; color: #2563eb; font-size: 16px; border-top: 2px solid #eee;">${invoice.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })} ${invoice.currency}</td>
+          <td colspan="4" style="padding: 10px; text-align: right; font-weight: 700; color: #2563eb; font-size: 16px; border-top: 2px solid #eee;">Subtotal:</td>
+          <td style="padding: 10px; text-align: right; font-weight: 700; color: #2563eb; font-size: 16px; border-top: 2px solid #eee;">${(invoice.taxable_amount || invoice.total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+          <td style="padding: 10px; text-align: right; font-weight: 700; color: #2563eb; font-size: 16px; border-top: 2px solid #eee;">${(invoice.total_gst_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+          <td style="padding: 10px; text-align: right; font-weight: 700; color: #2563eb; font-size: 16px; border-top: 2px solid #eee;">${(invoice.grand_total || invoice.total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
         </tr>
+        ${invoice.gst_type === 'intra_state' ? `
+          <tr>
+            <td colspan="5" style="padding: 5px; text-align: right; font-size: 14px; color: #666;">CGST (9%):</td>
+            <td style="padding: 5px; text-align: right; font-size: 14px; color: #666;">${(invoice.cgst_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td colspan="5" style="padding: 5px; text-align: right; font-size: 14px; color: #666;">SGST (9%):</td>
+            <td style="padding: 5px; text-align: right; font-size: 14px; color: #666;">${(invoice.sgst_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+            <td></td>
+          </tr>
+        ` : `
+          <tr>
+            <td colspan="5" style="padding: 5px; text-align: right; font-size: 14px; color: #666;">IGST (18%):</td>
+            <td style="padding: 5px; text-align: right; font-size: 14px; color: #666;">${(invoice.igst_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+            <td></td>
+          </tr>
+        `}
       </tfoot>
     </table>
     <div style="margin-bottom: 16px; color: #888; font-size: 13px;"><b>Notes:</b> ${invoice.notes || '-'}</div>
     <div style="border-top: 1px solid #eee; margin-top: 32px; padding-top: 16px; color: #888; font-size: 12px; text-align: center;">
-      Thank you for your business!<br />VAMS Veterinary Consultancy Pvt Ltd
+      Thank you for your business!<br />VAMS Veterinary Consultancy Pvt Ltd<br />
+      <div style="margin-top: 8px; font-size: 11px;">
+        This is a computer generated invoice and does not require signature.
+      </div>
     </div>
   </div>
 `;
@@ -100,17 +132,34 @@ const CustomerInvoices: React.FC = () => {
     items: [] as InvoiceItem[],
     notes: '',
     currency: 'INR',
+    // GST Fields
+    company_gst_number: '32AABCV1234A1Z5',
+    customer_gst_number: '',
+    customer_state: '',
+    gst_type: 'intra_state' as 'intra_state' | 'inter_state',
+    taxable_amount: 0,
+    cgst_amount: 0,
+    sgst_amount: 0,
+    igst_amount: 0,
+    total_gst_amount: 0,
+    grand_total: 0,
   });
   const [newItem, setNewItem] = useState({
     description: '',
     quantity: 1,
     unit_price: 0,
-    amount: 0
+    amount: 0,
+    hsn_sac_code: '9987',
+    tax_rate: 18,
+    taxable_amount: 0,
+    tax_amount: 0
   });
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [receiptForm, setReceiptForm] = useState({
     method: 'cash' as 'card' | 'cash' | 'bank_transfer',
@@ -179,6 +228,16 @@ const CustomerInvoices: React.FC = () => {
         items: [],
         notes: '',
         currency: 'INR',
+        company_gst_number: '32AABCV1234A1Z5',
+        customer_gst_number: '',
+        customer_state: '',
+        gst_type: 'intra_state',
+        taxable_amount: 0,
+        cgst_amount: 0,
+        sgst_amount: 0,
+        igst_amount: 0,
+        total_gst_amount: 0,
+        grand_total: 0,
       });
       
       // Reload data
@@ -190,22 +249,47 @@ const CustomerInvoices: React.FC = () => {
   };
 
   const handleAddItem = () => {
-    if (!newItem.description || newItem.quantity <= 0 || newItem.unit_price <= 0) {
-      toast.error('Please fill in all item details correctly');
+    if (!newItem.description || newItem.quantity <= 0 || newItem.unit_price <= 0 || !newItem.hsn_sac_code) {
+      toast.error('Please fill in all item details correctly including HSN/SAC code');
       return;
     }
 
-    const amount = newItem.quantity * newItem.unit_price;
-    setNewInvoice(prev => ({
-      ...prev,
-      items: [...prev.items, { ...newItem, amount }],
-      total: prev.total + amount
-    }));
+    const taxableAmount = newItem.quantity * newItem.unit_price;
+    const taxAmount = (taxableAmount * newItem.tax_rate) / 100;
+    const totalAmount = taxableAmount + taxAmount;
+
+    const itemWithTax = {
+      ...newItem,
+      taxable_amount: taxableAmount,
+      tax_amount: taxAmount,
+      amount: totalAmount
+    };
+
+    setNewInvoice(prev => {
+      const newItems = [...prev.items, itemWithTax];
+      const newTaxableAmount = newItems.reduce((sum, item) => sum + item.taxable_amount, 0);
+      const newTotalGST = newItems.reduce((sum, item) => sum + item.tax_amount, 0);
+      const newGrandTotal = newTaxableAmount + newTotalGST;
+
+      return {
+        ...prev,
+        items: newItems,
+        taxable_amount: newTaxableAmount,
+        total_gst_amount: newTotalGST,
+        grand_total: newGrandTotal,
+        total: newGrandTotal
+      };
+    });
+
     setNewItem({
       description: '',
       quantity: 1,
       unit_price: 0,
-      amount: 0
+      amount: 0,
+      hsn_sac_code: '9987',
+      tax_rate: 18,
+      taxable_amount: 0,
+      tax_amount: 0
     });
   };
 
@@ -215,18 +299,27 @@ const CustomerInvoices: React.FC = () => {
       setNewInvoice(prev => ({
         ...prev,
         customer_id: customer.id!,
-        customer_name: customer.entity_name
+        customer_name: customer.entity_name,
+        customer_gst_number: customer.gst_number || '',
+        customer_state: customer.state || ''
       }));
     }
   };
 
   const handleRemoveItem = (index: number) => {
     setNewInvoice(prev => {
-      const item = prev.items[index];
+      const newItems = prev.items.filter((_, i) => i !== index);
+      const newTaxableAmount = newItems.reduce((sum, item) => sum + item.taxable_amount, 0);
+      const newTotalGST = newItems.reduce((sum, item) => sum + item.tax_amount, 0);
+      const newGrandTotal = newTaxableAmount + newTotalGST;
+
       return {
         ...prev,
-        items: prev.items.filter((_, i) => i !== index),
-        total: prev.total - item.amount
+        items: newItems,
+        taxable_amount: newTaxableAmount,
+        total_gst_amount: newTotalGST,
+        grand_total: newGrandTotal,
+        total: newGrandTotal
       };
     });
   };
@@ -307,6 +400,30 @@ const CustomerInvoices: React.FC = () => {
     }
   };
 
+  const handleEditInvoice = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setIsEditModalOpen(true);
+  };
+
+  const handleDeleteInvoice = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedInvoice) return;
+    try {
+      await deleteInvoice(selectedInvoice.id!);
+      toast.success('Invoice deleted successfully');
+      setIsDeleteModalOpen(false);
+      setSelectedInvoice(null);
+      loadData();
+    } catch (error) {
+      toast.error('Failed to delete invoice');
+      console.error('Error deleting invoice:', error);
+    }
+  };
+
   const filteredInvoices = invoices.filter(invoice =>
     invoice.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     invoice.id?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -380,6 +497,8 @@ const CustomerInvoices: React.FC = () => {
               customers={customers}
               searchTerm={searchTerm}
               onViewDetails={handleViewDetails}
+              onEditInvoice={handleEditInvoice}
+              onDeleteInvoice={handleDeleteInvoice}
             />
           )}
         </CardContent>
@@ -391,6 +510,15 @@ const CustomerInvoices: React.FC = () => {
         onOpenChange={setIsAddModalOpen}
         customers={customers}
         onInvoiceCreated={loadData}
+      />
+
+      {/* Edit Invoice Modal */}
+      <EditInvoiceModal
+        open={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        customers={customers}
+        invoice={selectedInvoice}
+        onInvoiceUpdated={loadData}
       />
 
       {/* Invoice Details Modal */}
@@ -461,6 +589,43 @@ const CustomerInvoices: React.FC = () => {
           ) : (
             <div>No invoice selected.</div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Invoice</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this invoice? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedInvoice && (
+            <div className="py-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="font-medium">Invoice ID: {selectedInvoice.invoice_id || selectedInvoice.id}</p>
+                <p className="text-sm text-gray-600">Customer: {selectedInvoice.customer_name}</p>
+                <p className="text-sm text-gray-600">Amount: {getCurrencySymbol(selectedInvoice.currency)}{selectedInvoice.total?.toFixed(2)}</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button 
+              type="button" 
+              onClick={() => setIsDeleteModalOpen(false)} 
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="button" 
+              onClick={handleConfirmDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete Invoice
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

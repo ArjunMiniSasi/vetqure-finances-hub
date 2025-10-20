@@ -18,7 +18,10 @@ const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose, onSave
     phone: '',
     address: '',
     subscriptionStatus: 'active',
-    renewalDate: ''
+    renewalDate: '',
+    gstNumber: '',
+    state: '',
+    type: 'business' as 'individual' | 'business'
   });
 
   const handleSave = () => {
@@ -29,7 +32,10 @@ const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose, onSave
       phone: '',
       address: '',
       subscriptionStatus: 'active',
-      renewalDate: ''
+      renewalDate: '',
+      gstNumber: '',
+      state: '',
+      type: 'business'
     });
     onClose();
   };
@@ -90,9 +96,87 @@ const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose, onSave
                 value={formData.phone}
                 onChange={(e) => handleInputChange('phone', e.target.value)}
                 className="mt-1 h-12"
-                placeholder="+1 (555) 123-4567"
+                placeholder="+91 98765 43210"
               />
             </div>
+            <div>
+              <Label htmlFor="type">Client Type</Label>
+              <select
+                id="type"
+                className="w-full mt-1 p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent h-12"
+                value={formData.type}
+                onChange={(e) => handleInputChange('type', e.target.value)}
+              >
+                <option value="business">Business</option>
+                <option value="individual">Individual</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="gstNumber">GST Number {formData.type === 'business' && <span className="text-red-500">*</span>}</Label>
+              <Input
+                type="text"
+                id="gstNumber"
+                value={formData.gstNumber}
+                onChange={(e) => handleInputChange('gstNumber', e.target.value)}
+                className="mt-1 h-12"
+                placeholder="32AABCV1234A1Z5"
+                required={formData.type === 'business'}
+              />
+            </div>
+            <div>
+              <Label htmlFor="state">State {formData.type === 'business' && <span className="text-red-500">*</span>}</Label>
+              <select
+                id="state"
+                className="w-full mt-1 p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent h-12"
+                value={formData.state}
+                onChange={(e) => handleInputChange('state', e.target.value)}
+                required={formData.type === 'business'}
+              >
+                <option value="">Select State</option>
+                <option value="Kerala">Kerala</option>
+                <option value="Tamil Nadu">Tamil Nadu</option>
+                <option value="Karnataka">Karnataka</option>
+                <option value="Maharashtra">Maharashtra</option>
+                <option value="Delhi">Delhi</option>
+                <option value="Gujarat">Gujarat</option>
+                <option value="Rajasthan">Rajasthan</option>
+                <option value="Punjab">Punjab</option>
+                <option value="Haryana">Haryana</option>
+                <option value="Uttar Pradesh">Uttar Pradesh</option>
+                <option value="West Bengal">West Bengal</option>
+                <option value="Andhra Pradesh">Andhra Pradesh</option>
+                <option value="Telangana">Telangana</option>
+                <option value="Odisha">Odisha</option>
+                <option value="Madhya Pradesh">Madhya Pradesh</option>
+                <option value="Bihar">Bihar</option>
+                <option value="Jharkhand">Jharkhand</option>
+                <option value="Chhattisgarh">Chhattisgarh</option>
+                <option value="Assam">Assam</option>
+                <option value="Himachal Pradesh">Himachal Pradesh</option>
+                <option value="Uttarakhand">Uttarakhand</option>
+                <option value="Jammu and Kashmir">Jammu and Kashmir</option>
+                <option value="Ladakh">Ladakh</option>
+                <option value="Goa">Goa</option>
+                <option value="Sikkim">Sikkim</option>
+                <option value="Arunachal Pradesh">Arunachal Pradesh</option>
+                <option value="Manipur">Manipur</option>
+                <option value="Meghalaya">Meghalaya</option>
+                <option value="Mizoram">Mizoram</option>
+                <option value="Nagaland">Nagaland</option>
+                <option value="Tripura">Tripura</option>
+                <option value="Andaman and Nicobar Islands">Andaman and Nicobar Islands</option>
+                <option value="Chandigarh">Chandigarh</option>
+                <option value="Dadra and Nagar Haveli and Daman and Diu">Dadra and Nagar Haveli and Daman and Diu</option>
+                <option value="Lakshadweep">Lakshadweep</option>
+                <option value="Puducherry">Puducherry</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="subscriptionStatus">Subscription Status</Label>
               <select
@@ -105,6 +189,16 @@ const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose, onSave
                 <option value="inactive">Inactive</option>
               </select>
             </div>
+            <div>
+              <Label htmlFor="renewalDate">Renewal Date</Label>
+              <Input
+                type="date"
+                id="renewalDate"
+                value={formData.renewalDate}
+                onChange={(e) => handleInputChange('renewalDate', e.target.value)}
+                className="mt-1 h-12"
+              />
+            </div>
           </div>
 
           <div>
@@ -116,17 +210,6 @@ const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose, onSave
               onChange={(e) => handleInputChange('address', e.target.value)}
               className="mt-1 h-12"
               placeholder="123 Main St, City, State 12345"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="renewalDate">Renewal Date</Label>
-            <Input
-              type="date"
-              id="renewalDate"
-              value={formData.renewalDate}
-              onChange={(e) => handleInputChange('renewalDate', e.target.value)}
-              className="mt-1 h-12"
             />
           </div>
         </div>

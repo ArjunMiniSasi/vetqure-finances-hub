@@ -30,13 +30,17 @@ export interface Customer {
     type: 'individual' | 'business';
     status: 'active' | 'inactive';
     renewal_date: Timestamp | null;
+    gst_number?: string; // GST number for B2B clients
+    state?: string; // Customer state for GST calculation
     createdAt: Timestamp;
     updatedAt: Timestamp;
 }
 
 export interface Invoice {
-    id?: string;
-    invoice_id?: string;
+    id?: string; // Document ID (stable UUID for new invoices, invoice_id for existing)
+    document_id?: string; // Stable UUID (for new invoices)
+    invoice_id?: string; // Generated invoice number (VAMS/2024-25/001) - kept for backward compatibility
+    invoice_number?: string; // New field for invoice number (replaces invoice_id for new invoices)
     customer_id: string;
     customer_name: string;
     date_created: Timestamp;
@@ -48,6 +52,21 @@ export interface Invoice {
     createdAt: Timestamp;
     updatedAt: Timestamp;
     currency: string;
+    // Version tracking for stable ID system
+    version?: number; // Version number (1, 2, 3...)
+    is_latest?: boolean; // Is this the latest version?
+    original_invoice_number?: string; // First invoice number (for audit trail)
+    // GST Fields
+    company_gst_number: string; // Fixed company GST number
+    customer_gst_number?: string; // Customer GST number
+    customer_state?: string; // Customer state
+    gst_type: 'intra_state' | 'inter_state'; // CGST+SGST or IGST
+    taxable_amount: number; // Total before tax
+    cgst_amount: number; // CGST amount (9% for intra-state)
+    sgst_amount: number; // SGST amount (9% for intra-state)
+    igst_amount: number; // IGST amount (18% for inter-state)
+    total_gst_amount: number; // Total GST amount
+    grand_total: number; // Total including GST
 }
 
 export interface InvoiceItem {
@@ -55,11 +74,16 @@ export interface InvoiceItem {
     quantity: number;
     unit_price: number;
     amount: number;
+    hsn_sac_code: string; // HSN/SAC code for GST
+    tax_rate: number; // Tax rate percentage (e.g., 18 for 18%)
+    taxable_amount: number; // Amount before tax
+    tax_amount: number; // GST amount for this item
 }
 
 export interface Receipt {
     id?: string;
-    invoice_id: string;
+    invoice_id: string; // Current invoice number (for display and backward compatibility)
+    invoice_document_id?: string; // Stable reference to invoice document (for new receipts)
     customer_id: string;
     customer_name: string;
     amount: number;
@@ -80,6 +104,10 @@ export const addCustomer = async (customerData: Omit<Customer, 'id' | 'createdAt
         const customerWithTimestamps = {
             ...customerData,
             renewal_date: customerData.renewal_date,
+            // Add lowercase search fields for case-insensitive search
+            name_lower: customerData.name.toLowerCase(),
+            email_lower: customerData.email.toLowerCase(),
+            entity_name_lower: customerData.entity_name.toLowerCase(),
             createdAt: now,
             updatedAt: now
         };
@@ -111,12 +139,25 @@ export const updateCustomer = async (customerId: string, customerData: Omit<Cust
         await updateDoc(customerRef, {
             ...customerData,
             renewal_date: customerData.renewal_date,
+            // Update lowercase search fields for case-insensitive search
+            name_lower: customerData.name.toLowerCase(),
+            email_lower: customerData.email.toLowerCase(),
+            entity_name_lower: customerData.entity_name.toLowerCase(),
             updatedAt: now
         });
     } catch (error) {
         console.error('Error updating customer:', error);
         throw error;
     }
+};
+
+// Helper to generate stable UUID for document IDs
+export const generateStableId = (): string => {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
 };
 
 // Helper to generate custom invoice ID
@@ -144,17 +185,35 @@ export const generateCustomInvoiceId = async (): Promise<string> => {
 export const addInvoice = async (invoiceData: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
     try {
         const now = Timestamp.now();
-        const customId = await generateCustomInvoiceId();
+        const stableId = generateStableId(); // Generate stable UUID
+        const invoiceNumber = await generateInvoiceNumber(); // Generate invoice number
+
+        // Calculate GST if not already calculated
+        let gstData = {};
+        if (invoiceData.customer_state) {
+            const taxableAmount = invoiceData.items.reduce((sum, item) => sum + (item.taxable_amount || item.amount), 0);
+            gstData = calculateGST(taxableAmount, invoiceData.customer_state);
+        }
+
         const invoiceWithTimestamps = {
             ...invoiceData,
-            invoice_id: customId,
+            document_id: stableId, // Stable UUID
+            invoice_number: invoiceNumber, // New field for invoice number
+            invoice_id: invoiceNumber, // Keep for backward compatibility
+            original_invoice_number: invoiceNumber, // First invoice number
+            version: 1, // First version
+            is_latest: true, // This is the latest version
+            company_gst_number: '32AABCV1234A1Z5', // Fixed company GST number
             date_created: invoiceData.date_created,
             due_date: invoiceData.due_date,
             createdAt: now,
-            updatedAt: now
+            updatedAt: now,
+            ...gstData
         };
-        await setDoc(doc(db, 'customer_invoices', customId), invoiceWithTimestamps);
-        return customId;
+
+        // Use stable ID as document ID
+        await setDoc(doc(db, 'customer_invoices', stableId), invoiceWithTimestamps);
+        return stableId; // Return stable ID instead of invoice number
     } catch (error) {
         console.error('Error adding invoice:', error);
         throw error;
@@ -246,6 +305,91 @@ export const getAllReceipts = async (): Promise<Receipt[]> => {
         } as Receipt));
     } catch (error) {
         console.error('Error getting all receipts:', error);
+        throw error;
+    }
+};
+
+// Invoice number generation
+export const generateInvoiceNumber = async (): Promise<string> => {
+    try {
+        const currentYear = new Date().getFullYear();
+        const financialYear = `${currentYear}-${(currentYear + 1).toString().slice(-2)}`;
+
+        // Get the latest invoice number for this financial year
+        const q = query(
+            collection(db, 'customer_invoices'),
+            where('invoice_id', '>=', `VAMS/${financialYear}/000`),
+            where('invoice_id', '<=', `VAMS/${financialYear}/999`),
+            orderBy('invoice_id', 'desc'),
+            limit(1)
+        );
+
+        const querySnapshot = await getDocs(q);
+        let nextNumber = 1;
+
+        if (!querySnapshot.empty) {
+            const lastInvoice = querySnapshot.docs[0].data() as Invoice;
+            const lastNumber = parseInt(lastInvoice.invoice_id?.split('/')[2] || '0');
+            nextNumber = lastNumber + 1;
+        }
+
+        return `VAMS/${financialYear}/${nextNumber.toString().padStart(3, '0')}`;
+    } catch (error) {
+        console.error('Error generating invoice number:', error);
+        throw error;
+    }
+};
+
+// GST calculation helper
+export const calculateGST = (taxableAmount: number, customerState: string, companyState: string = 'Kerala') => {
+    const isIntraState = customerState === companyState;
+    const taxRate = 18; // 18% GST for veterinary services
+
+    if (isIntraState) {
+        // Intra-state: CGST + SGST (9% each)
+        const cgstAmount = (taxableAmount * 9) / 100;
+        const sgstAmount = (taxableAmount * 9) / 100;
+        return {
+            gst_type: 'intra_state' as const,
+            cgst_amount: cgstAmount,
+            sgst_amount: sgstAmount,
+            igst_amount: 0,
+            total_gst_amount: cgstAmount + sgstAmount
+        };
+    } else {
+        // Inter-state: IGST (18%)
+        const igstAmount = (taxableAmount * taxRate) / 100;
+        return {
+            gst_type: 'inter_state' as const,
+            cgst_amount: 0,
+            sgst_amount: 0,
+            igst_amount: igstAmount,
+            total_gst_amount: igstAmount
+        };
+    }
+};
+
+// Update invoice function
+export const updateInvoice = async (documentId: string, invoiceData: Partial<Invoice>) => {
+    try {
+        const invoiceRef = doc(db, 'customer_invoices', documentId);
+
+        // Generate new invoice number for edited invoices (GST compliance)
+        const newInvoiceNumber = await generateInvoiceNumber();
+
+        const updateData = {
+            ...invoiceData,
+            invoice_number: newInvoiceNumber, // Update invoice number
+            invoice_id: newInvoiceNumber, // Keep for backward compatibility
+            version: (invoiceData.version || 1) + 1, // Increment version
+            is_latest: true, // This becomes the latest version
+            updatedAt: Timestamp.now()
+        };
+
+        await updateDoc(invoiceRef, updateData);
+        return { id: documentId, ...updateData };
+    } catch (error) {
+        console.error('Error updating invoice:', error);
         throw error;
     }
 };
@@ -343,33 +487,121 @@ export const getCustomersPaginatedByName = async (
     lastDoc?: DocumentData
 ): Promise<{ customers: Customer[]; lastDoc: DocumentData | null }> => {
     try {
+        // For case-insensitive search, we'll use a different approach
+        // Since Firestore doesn't support case-insensitive queries directly,
+        // we'll search for the lowercase version and then filter client-side
+
+        const lowerSearchTerm = searchTerm.toLowerCase();
+        const upperSearchTerm = searchTerm.toUpperCase();
+        const capitalizedSearchTerm = searchTerm.charAt(0).toUpperCase() + searchTerm.slice(1).toLowerCase();
+
+        // Create multiple queries for different case variations
+        const queries = [
+            query(
+                collection(db, 'customers'),
+                orderBy('name'),
+                startAt(lowerSearchTerm),
+                endAt(lowerSearchTerm + '\uf8ff'),
+                limit(pageSize * 3) // Get more results to account for filtering
+            ),
+            query(
+                collection(db, 'customers'),
+                orderBy('name'),
+                startAt(upperSearchTerm),
+                endAt(upperSearchTerm + '\uf8ff'),
+                limit(pageSize * 3)
+            ),
+            query(
+                collection(db, 'customers'),
+                orderBy('name'),
+                startAt(capitalizedSearchTerm),
+                endAt(capitalizedSearchTerm + '\uf8ff'),
+                limit(pageSize * 3)
+            )
+        ];
+
+        // Execute all queries in parallel
+        const querySnapshots = await Promise.all(queries.map(q => getDocs(q)));
+
+        // Combine and deduplicate results
+        const allDocs = new Map();
+        querySnapshots.forEach(snapshot => {
+            snapshot.docs.forEach(doc => {
+                allDocs.set(doc.id, doc);
+            });
+        });
+
+        // Convert to customers and filter client-side for case-insensitive match
+        const allCustomers = Array.from(allDocs.values()).map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as Customer));
+
+        // Filter for case-insensitive match
+        const filteredCustomers = allCustomers.filter(customer =>
+            customer.name.toLowerCase().includes(lowerSearchTerm) ||
+            customer.email.toLowerCase().includes(lowerSearchTerm) ||
+            customer.entity_name.toLowerCase().includes(lowerSearchTerm)
+        );
+
+        // Sort by name and apply pagination
+        filteredCustomers.sort((a, b) => a.name.localeCompare(b.name));
+
+        // For pagination, we'll return the first pageSize results
+        // Note: This is a simplified pagination for case-insensitive search
+        const paginatedCustomers = filteredCustomers.slice(0, pageSize);
+
+        return {
+            customers: paginatedCustomers,
+            lastDoc: null // Simplified pagination for case-insensitive search
+        };
+    } catch (error) {
+        console.error('Error getting paginated customers by name:', error);
+        throw error;
+    }
+};
+
+// More efficient case-insensitive search using lowercase fields
+export const getCustomersPaginatedByNameCaseInsensitive = async (
+    searchTerm: string,
+    pageSize: number,
+    lastDoc?: DocumentData
+): Promise<{ customers: Customer[]; lastDoc: DocumentData | null }> => {
+    try {
+        const lowerSearchTerm = searchTerm.toLowerCase();
+
+        // Use the lowercase field for efficient case-insensitive search
         let q = query(
             collection(db, 'customers'),
-            orderBy('name'),
-            startAt(searchTerm),
-            endAt(searchTerm + '\uf8ff'),
+            orderBy('name_lower'),
+            startAt(lowerSearchTerm),
+            endAt(lowerSearchTerm + '\uf8ff'),
             limit(pageSize)
         );
+
         if (lastDoc) {
             q = query(
                 collection(db, 'customers'),
-                orderBy('name'),
-                startAt(searchTerm),
-                endAt(searchTerm + '\uf8ff'),
+                orderBy('name_lower'),
+                startAt(lowerSearchTerm),
+                endAt(lowerSearchTerm + '\uf8ff'),
                 startAfter(lastDoc),
                 limit(pageSize)
             );
         }
+
         const querySnapshot = await getDocs(q);
         const customers = querySnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         } as Customer));
+
         const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
         return { customers, lastDoc: lastVisible };
     } catch (error) {
-        console.error('Error getting paginated customers by name:', error);
-        throw error;
+        console.error('Error getting paginated customers by name (case-insensitive):', error);
+        // Fallback to the previous method if lowercase fields don't exist
+        return getCustomersPaginatedByName(searchTerm, pageSize, lastDoc);
     }
 };
 
@@ -383,4 +615,69 @@ export const checkCustomerExistsByEmail = async (email: string): Promise<boolean
         console.error('Error checking customer by email:', error);
         throw error;
     }
-}; 
+};
+
+// Migration function for existing customers to add lowercase search fields
+export const migrateExistingCustomers = async (): Promise<void> => {
+    try {
+        console.log('Starting customer migration for case-insensitive search...');
+        const existingCustomers = await getCustomers();
+        let migratedCount = 0;
+
+        for (const customer of existingCustomers) {
+            // Check if customer already has lowercase fields
+            if (!customer.name_lower) {
+                const customerRef = doc(db, 'customers', customer.id!);
+
+                await updateDoc(customerRef, {
+                    name_lower: customer.name.toLowerCase(),
+                    email_lower: customer.email.toLowerCase(),
+                    entity_name_lower: customer.entity_name.toLowerCase(),
+                    updatedAt: Timestamp.now()
+                });
+
+                migratedCount++;
+                console.log(`Migrated customer: ${customer.name}`);
+            }
+        }
+
+        console.log(`Customer migration completed. Migrated ${migratedCount} customers.`);
+    } catch (error) {
+        console.error('Error during customer migration:', error);
+        throw error;
+    }
+};
+
+// Migration function for existing invoices (run once)
+export const migrateExistingInvoices = async (): Promise<void> => {
+    try {
+        console.log('Starting invoice migration...');
+        const existingInvoices = await getAllInvoices();
+        let migratedCount = 0;
+
+        for (const invoice of existingInvoices) {
+            // Check if invoice already has stable ID structure
+            if (!invoice.document_id && invoice.invoice_id) {
+                // This is an old invoice that needs migration
+                const invoiceRef = doc(db, 'customer_invoices', invoice.invoice_id);
+
+                await updateDoc(invoiceRef, {
+                    document_id: invoice.invoice_id, // Use existing invoice_id as stable ID
+                    invoice_number: invoice.invoice_id, // Add new field
+                    original_invoice_number: invoice.invoice_id, // First invoice number
+                    version: 1, // First version
+                    is_latest: true, // This is the latest version
+                    updatedAt: Timestamp.now()
+                });
+
+                migratedCount++;
+                console.log(`Migrated invoice: ${invoice.invoice_id}`);
+            }
+        }
+
+        console.log(`Migration completed. Migrated ${migratedCount} invoices.`);
+    } catch (error) {
+        console.error('Error during invoice migration:', error);
+        throw error;
+    }
+};

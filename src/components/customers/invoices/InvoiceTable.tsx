@@ -6,6 +6,8 @@ interface InvoiceTableProps {
   customers: Customer[];
   searchTerm: string;
   onViewDetails: (invoice: Invoice) => void;
+  onEditInvoice: (invoice: Invoice) => void;
+  onDeleteInvoice: (invoice: Invoice) => void;
 }
 
 const currencyOptions = [
@@ -20,7 +22,7 @@ const getCurrencySymbol = (code: string) => {
   return found ? found.symbol : '₹';
 };
 
-const InvoiceTable: React.FC<InvoiceTableProps> = ({ invoices, customers, searchTerm, onViewDetails }) => {
+const InvoiceTable: React.FC<InvoiceTableProps> = ({ invoices, customers, searchTerm, onViewDetails, onEditInvoice, onDeleteInvoice }) => {
   const filteredInvoices = invoices.filter(invoice =>
     invoice.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     invoice.id?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -70,12 +72,26 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({ invoices, customers, search
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <button
-                  className="text-blue-600 hover:text-blue-900 font-medium"
-                  onClick={() => onViewDetails(invoice)}
-                >
-                  View Details
-                </button>
+                <div className="flex justify-end space-x-2">
+                  <button
+                    className="text-blue-600 hover:text-blue-900 font-medium"
+                    onClick={() => onViewDetails(invoice)}
+                  >
+                    View
+                  </button>
+                  <button
+                    className="text-green-600 hover:text-green-900 font-medium"
+                    onClick={() => onEditInvoice(invoice)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="text-red-600 hover:text-red-900 font-medium"
+                    onClick={() => onDeleteInvoice(invoice)}
+                  >
+                    Delete
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

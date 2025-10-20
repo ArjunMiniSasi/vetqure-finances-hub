@@ -1,17 +1,18 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'react-hot-toast';
-import { InvoiceItem, Customer, addInvoice, calculateGST } from '@/services/firestoreService';
+import { InvoiceItem, Customer, updateInvoice, calculateGST } from '@/services/firestoreService';
 import { Timestamp } from 'firebase/firestore';
 
-interface AddInvoiceModalProps {
+interface EditInvoiceModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   customers: Customer[];
-  onInvoiceCreated: () => void;
+  invoice: any; // Invoice to edit
+  onInvoiceUpdated: () => void;
 }
 
 const currencyOptions = [
@@ -21,13 +22,14 @@ const currencyOptions = [
   { code: 'GBP', symbol: '£', label: 'GBP (£)' },
 ];
 
-const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
+const EditInvoiceModal: React.FC<EditInvoiceModalProps> = ({
   open,
   onOpenChange,
   customers,
-  onInvoiceCreated,
+  invoice,
+  onInvoiceUpdated,
 }) => {
-  const [newInvoice, setNewInvoice] = useState({
+  const [editedInvoice, setEditedInvoice] = useState({
     customer_id: '',
     customer_name: '',
     date_created: Timestamp.now(),
@@ -58,8 +60,8 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
     quantity: 1,
     unit_price: 0,
     amount: 0,
-    hsn_sac_code: '9987', // Default HSN code for veterinary services
-    tax_rate: 18, // 18% GST
+    hsn_sac_code: '9987',
+    tax_rate: 18,
     taxable_amount: 0,
     tax_amount: 0
   });
@@ -79,64 +81,106 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
     c.entity_name.toLowerCase().includes(customerSearch.toLowerCase())
   );
 
-  const handleAddInvoice = async (e: React.FormEvent) => {
+  // Pre-fill form when invoice changes
+  useEffect(() => {
+    if (invoice && open) {
+      // Calculate GST fields for existing invoices that don't have them
+      const items = invoice.items || [];
+      
+      // Recalculate GST for all items to ensure proper tax calculation
+      const recalculatedItems = items.map(item => {
+        const taxableAmount = (item.unit_price || 0) * (item.quantity || 0);
+        const taxAmount = (taxableAmount * 18) / 100; // 18% GST
+        const totalAmount = taxableAmount + taxAmount;
+        
+        return {
+          ...item,
+          hsn_sac_code: item.hsn_sac_code || '9987',
+          tax_rate: 18,
+          taxable_amount: taxableAmount,
+          tax_amount: taxAmount,
+          amount: totalAmount
+        };
+      });
+      
+      const taxableAmount = recalculatedItems.reduce((sum, item) => sum + item.taxable_amount, 0);
+      const totalGST = recalculatedItems.reduce((sum, item) => sum + item.tax_amount, 0);
+      const grandTotal = taxableAmount + totalGST;
+
+      setEditedInvoice({
+        customer_id: invoice.customer_id || '',
+        customer_name: invoice.customer_name || '',
+        date_created: invoice.date_created || Timestamp.now(),
+        due_date: invoice.due_date || Timestamp.now(),
+        status: invoice.status || 'pending',
+        total: invoice.total || 0,
+        items: recalculatedItems,
+        notes: invoice.notes || '',
+        currency: invoice.currency || 'INR',
+        company_gst_number: invoice.company_gst_number || '32AABCV1234A1Z5',
+        customer_gst_number: invoice.customer_gst_number || '',
+        customer_state: invoice.customer_state || '',
+        gst_type: invoice.gst_type || 'intra_state',
+        taxable_amount: taxableAmount,
+        cgst_percentage: invoice.cgst_percentage || 9,
+        sgst_percentage: invoice.sgst_percentage || 9,
+        igst_percentage: invoice.igst_percentage || 0,
+        cgst_amount: invoice.cgst_amount || 0,
+        sgst_amount: invoice.sgst_amount || 0,
+        igst_amount: invoice.igst_amount || 0,
+        total_gst_amount: totalGST,
+        grand_total: grandTotal,
+      });
+      setCustomerSearch(invoice.customer_name || '');
+    }
+  }, [invoice, open]);
+
+  const handleUpdateInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       // Validate customer selection
-      if (!newInvoice.customer_id) {
+      if (!editedInvoice.customer_id) {
         toast.error('Please select a customer');
         return;
       }
 
       // Validate items
-      if (newInvoice.items.length === 0) {
+      if (editedInvoice.items.length === 0) {
         toast.error('Please add at least one item');
         return;
       }
 
-      // Create the invoice in Firestore
-      await addInvoice({
-        ...newInvoice,
-        date_created: Timestamp.now(),
-        due_date: Timestamp.fromDate(new Date(newInvoice.due_date.toDate())),
-        status: 'pending',
-        total: newInvoice.items.reduce((sum, item) => sum + item.amount, 0)
+      // Update the invoice in Firestore using stable document ID
+      const documentId = invoice.document_id || invoice.id; // Use stable ID if available, fallback to old ID
+      await updateInvoice(documentId, {
+        ...editedInvoice,
+        date_created: editedInvoice.date_created,
+        due_date: editedInvoice.due_date,
+        status: editedInvoice.status,
+        total: editedInvoice.grand_total,
+        items: editedInvoice.items,
+        notes: editedInvoice.notes,
+        currency: editedInvoice.currency,
+        company_gst_number: editedInvoice.company_gst_number,
+        customer_gst_number: editedInvoice.customer_gst_number,
+        customer_state: editedInvoice.customer_state,
+        gst_type: editedInvoice.gst_type,
+        taxable_amount: editedInvoice.taxable_amount,
+        cgst_amount: editedInvoice.cgst_amount,
+        sgst_amount: editedInvoice.sgst_amount,
+        igst_amount: editedInvoice.igst_amount,
+        total_gst_amount: editedInvoice.total_gst_amount,
+        grand_total: editedInvoice.grand_total,
       });
 
-      toast.success('Invoice created successfully');
+      toast.success('Invoice updated successfully');
       onOpenChange(false);
       
-      // Reset form
-      setNewInvoice({
-        customer_id: '',
-        customer_name: '',
-        date_created: Timestamp.now(),
-        due_date: Timestamp.now(),
-        status: 'pending',
-        total: 0,
-        items: [],
-        notes: '',
-        currency: 'INR',
-        company_gst_number: '32AABCV1234A1Z5',
-        customer_gst_number: '',
-        customer_state: '',
-        gst_type: 'intra_state',
-        taxable_amount: 0,
-        cgst_percentage: 9,
-        sgst_percentage: 9,
-        igst_percentage: 0,
-        cgst_amount: 0,
-        sgst_amount: 0,
-        igst_amount: 0,
-        total_gst_amount: 0,
-        grand_total: 0,
-      });
-      
       // Notify parent to reload data
-      onInvoiceCreated();
+      onInvoiceUpdated();
     } catch (error) {
-      toast.error('Failed to create invoice');
-      console.error('Error creating invoice:', error);
+      toast.error('Failed to update invoice');
+      console.error('Error updating invoice:', error);
     }
   };
 
@@ -157,7 +201,7 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
       amount: totalAmount
     };
 
-    setNewInvoice(prev => {
+    setEditedInvoice(prev => {
       const newItems = [...prev.items, itemWithTax];
       const newTaxableAmount = newItems.reduce((sum, item) => sum + item.taxable_amount, 0);
       const newTotalGST = newItems.reduce((sum, item) => sum + item.tax_amount, 0);
@@ -169,7 +213,7 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
         taxable_amount: newTaxableAmount,
         total_gst_amount: newTotalGST,
         grand_total: newGrandTotal,
-        total: newGrandTotal // Keep total for backward compatibility
+        total: newGrandTotal
       };
     });
 
@@ -195,7 +239,7 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
   const handleCustomerSelect = (customerId: string) => {
     const customer = customers.find(c => c.id === customerId);
     if (customer) {
-      setNewInvoice(prev => ({
+      setEditedInvoice(prev => ({
         ...prev,
         customer_id: customer.id!,
         customer_name: customer.entity_name,
@@ -211,7 +255,7 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
   };
 
   const recalculateGST = (customerState: string) => {
-    setNewInvoice(prev => {
+    setEditedInvoice(prev => {
       const isIntraState = customerState === 'Kerala'; // Company is in Kerala
       const taxRate = 18;
       
@@ -269,11 +313,11 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
   };
 
   const handleCustomerInputBlur = () => {
-    setTimeout(() => setCustomerDropdownOpen(false), 100); // allow click
+    setTimeout(() => setCustomerDropdownOpen(false), 100);
   };
 
   const handleRemoveItem = (index: number) => {
-    setNewInvoice(prev => {
+    setEditedInvoice(prev => {
       const newItems = prev.items.filter((_, i) => i !== index);
       const newTaxableAmount = newItems.reduce((sum, item) => sum + item.taxable_amount, 0);
       const newTotalGST = newItems.reduce((sum, item) => sum + item.tax_amount, 0);
@@ -300,12 +344,12 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl w-[95vw] max-h-[95vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create New Invoice</DialogTitle>
+          <DialogTitle>Edit Invoice</DialogTitle>
           <DialogDescription>
-            Fill out the form below to create a new invoice for a customer. All required fields must be completed before saving.
+            Update the invoice details below. Note: Invoice number will be regenerated to maintain GST compliance.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleAddInvoice} className="space-y-4">
+        <form onSubmit={handleUpdateInvoice} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="customer">Customer</Label>
@@ -327,7 +371,7 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
                     {filteredCustomers.map((customer) => (
                       <div
                         key={customer.id}
-                        className={`px-3 py-2 cursor-pointer hover:bg-blue-100 ${newInvoice.customer_id === customer.id ? 'bg-blue-50' : ''}`}
+                        className={`px-3 py-2 cursor-pointer hover:bg-blue-100 ${editedInvoice.customer_id === customer.id ? 'bg-blue-50' : ''}`}
                         onMouseDown={() => handleCustomerSelect(customer.id)}
                       >
                         {customer.entity_name}
@@ -342,9 +386,9 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
               <Input
                 id="due_date"
                 type="date"
-                value={newInvoice.due_date.toDate().toISOString().split('T')[0]}
-                onChange={(e) => setNewInvoice({
-                  ...newInvoice,
+                value={editedInvoice.due_date.toDate().toISOString().split('T')[0]}
+                onChange={(e) => setEditedInvoice({
+                  ...editedInvoice,
                   due_date: Timestamp.fromDate(new Date(e.target.value))
                 })}
                 required
@@ -355,8 +399,8 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
               <select
                 id="currency"
                 className="w-full rounded-md border border-gray-300 px-3 py-2"
-                value={newInvoice.currency}
-                onChange={e => setNewInvoice({ ...newInvoice, currency: e.target.value })}
+                value={editedInvoice.currency}
+                onChange={e => setEditedInvoice({ ...editedInvoice, currency: e.target.value })}
                 required
               >
                 {currencyOptions.map(opt => (
@@ -374,7 +418,7 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => recalculateGST(newInvoice.customer_state)}
+                onClick={() => recalculateGST(editedInvoice.customer_state)}
                 className="text-blue-600 border-blue-600 hover:bg-blue-50"
               >
                 Recalculate GST
@@ -385,7 +429,7 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
                 <Label htmlFor="company_gst">Company GST Number</Label>
                 <Input
                   id="company_gst"
-                  value={newInvoice.company_gst_number}
+                  value={editedInvoice.company_gst_number}
                   disabled
                   className="bg-gray-100"
                 />
@@ -394,8 +438,8 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
                 <Label htmlFor="customer_gst">Customer GST Number</Label>
                 <Input
                   id="customer_gst"
-                  value={newInvoice.customer_gst_number}
-                  onChange={e => setNewInvoice({ ...newInvoice, customer_gst_number: e.target.value })}
+                  value={editedInvoice.customer_gst_number}
+                  onChange={e => setEditedInvoice({ ...editedInvoice, customer_gst_number: e.target.value })}
                   placeholder="Enter customer GST number"
                 />
               </div>
@@ -406,9 +450,9 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
                 <select
                   id="customer_state"
                   className="w-full rounded-md border border-gray-300 px-3 py-2"
-                  value={newInvoice.customer_state}
+                  value={editedInvoice.customer_state}
                   onChange={e => {
-                    setNewInvoice({ ...newInvoice, customer_state: e.target.value });
+                    setEditedInvoice({ ...editedInvoice, customer_state: e.target.value });
                     recalculateGST(e.target.value);
                   }}
                 >
@@ -454,7 +498,7 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
               <div className="space-y-2">
                 <Label>Total GST Amount</Label>
                 <div className="p-2 bg-white rounded border text-lg font-semibold text-blue-600">
-                  {getCurrencySymbol(newInvoice.currency)}{(newInvoice.total_gst_amount || 0).toFixed(2)}
+                  {getCurrencySymbol(editedInvoice.currency)}{(editedInvoice.total_gst_amount || 0).toFixed(2)}
                 </div>
               </div>
             </div>
@@ -468,11 +512,11 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
                     min="0"
                     max="100"
                     step="0.01"
-                    value={newInvoice.cgst_percentage || 9}
+                    value={editedInvoice.cgst_percentage || 9}
                     onChange={e => {
                       const cgstPercentage = parseFloat(e.target.value) || 0;
-                      const cgstAmount = ((newInvoice.taxable_amount || 0) * cgstPercentage) / 100;
-                      setNewInvoice(prev => ({
+                      const cgstAmount = ((editedInvoice.taxable_amount || 0) * cgstPercentage) / 100;
+                      setEditedInvoice(prev => ({
                         ...prev,
                         cgst_percentage: cgstPercentage,
                         cgst_amount: cgstAmount,
@@ -485,7 +529,7 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
                   <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-sm text-gray-600">%</span>
                 </div>
                 <div className="text-xs text-gray-500">
-                  Amount: {getCurrencySymbol(newInvoice.currency)}{(newInvoice.cgst_amount || 0).toFixed(2)}
+                  Amount: {getCurrencySymbol(editedInvoice.currency)}{(editedInvoice.cgst_amount || 0).toFixed(2)}
                 </div>
               </div>
               <div className="space-y-2">
@@ -497,11 +541,11 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
                     min="0"
                     max="100"
                     step="0.01"
-                    value={newInvoice.sgst_percentage || 9}
+                    value={editedInvoice.sgst_percentage || 9}
                     onChange={e => {
                       const sgstPercentage = parseFloat(e.target.value) || 0;
-                      const sgstAmount = ((newInvoice.taxable_amount || 0) * sgstPercentage) / 100;
-                      setNewInvoice(prev => ({
+                      const sgstAmount = ((editedInvoice.taxable_amount || 0) * sgstPercentage) / 100;
+                      setEditedInvoice(prev => ({
                         ...prev,
                         sgst_percentage: sgstPercentage,
                         sgst_amount: sgstAmount,
@@ -514,7 +558,7 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
                   <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-sm text-gray-600">%</span>
                 </div>
                 <div className="text-xs text-gray-500">
-                  Amount: {getCurrencySymbol(newInvoice.currency)}{(newInvoice.sgst_amount || 0).toFixed(2)}
+                  Amount: {getCurrencySymbol(editedInvoice.currency)}{(editedInvoice.sgst_amount || 0).toFixed(2)}
                 </div>
               </div>
               <div className="space-y-2">
@@ -526,11 +570,11 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
                     min="0"
                     max="100"
                     step="0.01"
-                    value={newInvoice.igst_percentage || 0}
+                    value={editedInvoice.igst_percentage || 0}
                     onChange={e => {
                       const igstPercentage = parseFloat(e.target.value) || 0;
-                      const igstAmount = ((newInvoice.taxable_amount || 0) * igstPercentage) / 100;
-                      setNewInvoice(prev => ({
+                      const igstAmount = ((editedInvoice.taxable_amount || 0) * igstPercentage) / 100;
+                      setEditedInvoice(prev => ({
                         ...prev,
                         igst_percentage: igstPercentage,
                         igst_amount: igstAmount,
@@ -543,7 +587,7 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
                   <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-sm text-gray-600">%</span>
                 </div>
                 <div className="text-xs text-gray-500">
-                  Amount: {getCurrencySymbol(newInvoice.currency)}{(newInvoice.igst_amount || 0).toFixed(2)}
+                  Amount: {getCurrencySymbol(editedInvoice.currency)}{(editedInvoice.igst_amount || 0).toFixed(2)}
                 </div>
               </div>
             </div>
@@ -652,7 +696,7 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
               </div>
             </div>
 
-            {newInvoice.items.length > 0 && (
+            {editedInvoice.items.length > 0 && (
               <div className="mt-4">
                 <table className="w-full">
                   <thead>
@@ -668,15 +712,15 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {newInvoice.items.map((item, index) => (
+                    {editedInvoice.items.map((item, index) => (
                       <tr key={index} className="border-b">
                         <td className="py-2">{item.description}</td>
-                        <td className="text-center py-2">{item.hsn_sac_code}</td>
+                        <td className="text-center py-2">{item.hsn_sac_code || '9987'}</td>
                         <td className="text-right py-2">{item.quantity}</td>
-                        <td className="text-right py-2">{getCurrencySymbol(newInvoice.currency)}{item.unit_price.toFixed(2)}</td>
-                        <td className="text-right py-2">{getCurrencySymbol(newInvoice.currency)}{item.taxable_amount.toFixed(2)}</td>
-                        <td className="text-right py-2">{getCurrencySymbol(newInvoice.currency)}{item.tax_amount.toFixed(2)}</td>
-                        <td className="text-right py-2">{getCurrencySymbol(newInvoice.currency)}{item.amount.toFixed(2)}</td>
+                        <td className="text-right py-2">{getCurrencySymbol(editedInvoice.currency)}{(item.unit_price || 0).toFixed(2)}</td>
+                        <td className="text-right py-2">{getCurrencySymbol(editedInvoice.currency)}{(item.taxable_amount || item.unit_price * item.quantity || 0).toFixed(2)}</td>
+                        <td className="text-right py-2">{getCurrencySymbol(editedInvoice.currency)}{(item.tax_amount || 0).toFixed(2)}</td>
+                        <td className="text-right py-2">{getCurrencySymbol(editedInvoice.currency)}{(item.amount || 0).toFixed(2)}</td>
                         <td className="text-right py-2">
                           <Button
                             type="button"
@@ -694,22 +738,22 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
                     <tr className="border-t-2">
                       <td colSpan={4} className="text-right py-2 font-medium">Subtotal:</td>
                       <td className="text-right py-2 font-medium">
-                        {getCurrencySymbol(newInvoice.currency)}{newInvoice.taxable_amount.toFixed(2)}
+                        {getCurrencySymbol(editedInvoice.currency)}{(editedInvoice.taxable_amount || 0).toFixed(2)}
                       </td>
                       <td className="text-right py-2 font-medium">
-                        {getCurrencySymbol(newInvoice.currency)}{newInvoice.total_gst_amount.toFixed(2)}
+                        {getCurrencySymbol(editedInvoice.currency)}{(editedInvoice.total_gst_amount || 0).toFixed(2)}
                       </td>
                       <td className="text-right py-2 font-medium">
-                        {getCurrencySymbol(newInvoice.currency)}{newInvoice.grand_total.toFixed(2)}
+                        {getCurrencySymbol(editedInvoice.currency)}{(editedInvoice.grand_total || editedInvoice.total || 0).toFixed(2)}
                       </td>
                       <td></td>
                     </tr>
-                    {newInvoice.gst_type === 'intra_state' ? (
+                    {editedInvoice.gst_type === 'intra_state' ? (
                       <>
                         <tr>
                           <td colSpan={5} className="text-right py-1 text-sm text-gray-600">CGST (9%):</td>
                           <td className="text-right py-1 text-sm text-gray-600">
-                            {getCurrencySymbol(newInvoice.currency)}{(newInvoice.cgst_amount || 0).toFixed(2)}
+                            {getCurrencySymbol(editedInvoice.currency)}{(editedInvoice.cgst_amount || 0).toFixed(2)}
                           </td>
                           <td></td>
                           <td></td>
@@ -717,7 +761,7 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
                         <tr>
                           <td colSpan={5} className="text-right py-1 text-sm text-gray-600">SGST (9%):</td>
                           <td className="text-right py-1 text-sm text-gray-600">
-                            {getCurrencySymbol(newInvoice.currency)}{(newInvoice.sgst_amount || 0).toFixed(2)}
+                            {getCurrencySymbol(editedInvoice.currency)}{(editedInvoice.sgst_amount || 0).toFixed(2)}
                           </td>
                           <td></td>
                           <td></td>
@@ -727,7 +771,7 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
                       <tr>
                         <td colSpan={5} className="text-right py-1 text-sm text-gray-600">IGST (18%):</td>
                         <td className="text-right py-1 text-sm text-gray-600">
-                          {getCurrencySymbol(newInvoice.currency)}{(newInvoice.igst_amount || 0).toFixed(2)}
+                          {getCurrencySymbol(editedInvoice.currency)}{(editedInvoice.igst_amount || 0).toFixed(2)}
                         </td>
                         <td></td>
                         <td></td>
@@ -745,8 +789,8 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
               id="notes"
               className="w-full rounded-md border border-gray-300 px-3 py-2"
               rows={3}
-              value={newInvoice.notes}
-              onChange={(e) => setNewInvoice({ ...newInvoice, notes: e.target.value })}
+              value={editedInvoice.notes}
+              onChange={(e) => setEditedInvoice({ ...editedInvoice, notes: e.target.value })}
               placeholder="Add any additional notes here..."
             />
           </div>
@@ -757,10 +801,10 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
             </Button>
             <Button
               type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              disabled={!newInvoice.customer_id || newInvoice.items.length === 0}
+              className="bg-green-600 hover:bg-green-700 text-white"
+              disabled={!editedInvoice.customer_id || editedInvoice.items.length === 0}
             >
-              Create Invoice
+              Update Invoice
             </Button>
           </DialogFooter>
         </form>
@@ -769,4 +813,4 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
   );
 };
 
-export default AddInvoiceModal; 
+export default EditInvoiceModal;

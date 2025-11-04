@@ -11,6 +11,7 @@ import { Timestamp } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import html2pdf from 'html2pdf.js';
 import { printInvoiceHtml } from '@/print/printInvoiceHtml';
+import { printGSTInvoice, downloadGSTInvoice } from '@/utils/gstInvoiceUtils';
 import InvoiceTable from './InvoiceTable';
 import InvoiceDetailsModal from './InvoiceDetailsModal';
 import AddInvoiceModal from './AddInvoiceModal';
@@ -34,7 +35,7 @@ const invoiceHtmlTemplate = ({ invoice, customer }) => `
       <div style="text-align: left;">
         <div style="font-weight: 700; font-size: 2rem; color: #222; margin-bottom: 2px;">VAMS Veterinary Consultancy Pvt Ltd</div>
         <div style="font-size: 15px; color: #888;">KRA-113, Kedaram Nagar, Pattom, Trivandrum</div>
-        <div style="font-size: 13px; color: #666; margin-top: 4px;">GST No: ${invoice.company_gst_number || '32AABCV1234A1Z5'}</div>
+        <div style="font-size: 13px; color: #666; margin-top: 4px;">GST No: ${invoice.company_gst_number || '32AAGCV9195E1Z2'}</div>
       </div>
     </div>
     <div style="display: flex; justify-content: space-between; margin-bottom: 32px;">
@@ -133,7 +134,7 @@ const CustomerInvoices: React.FC = () => {
     notes: '',
     currency: 'INR',
     // GST Fields
-    company_gst_number: '32AABCV1234A1Z5',
+    company_gst_number: '32AAGCV9195E1Z2',
     customer_gst_number: '',
     customer_state: '',
     gst_type: 'intra_state' as 'intra_state' | 'inter_state',
@@ -228,7 +229,7 @@ const CustomerInvoices: React.FC = () => {
         items: [],
         notes: '',
         currency: 'INR',
-        company_gst_number: '32AABCV1234A1Z5',
+        company_gst_number: '32AAGCV9195E1Z2',
         customer_gst_number: '',
         customer_state: '',
         gst_type: 'intra_state',
@@ -353,6 +354,60 @@ const CustomerInvoices: React.FC = () => {
     const element = document.createElement('div');
     element.innerHTML = fullHtml;
     html2pdf().from(element).save(`Invoice_${selectedInvoice.invoice_id || selectedInvoice.id}.pdf`);
+  };
+
+  const handlePrintGSTInvoice = (invoice: Invoice) => {
+    const customer = customers.find(c => c.id === invoice.customer_id);
+    if (!customer) {
+      toast.error('Customer not found');
+      return;
+    }
+    
+    const businessProfile = {
+      displayName: 'VAMS Veterinary Consultancy Private Limited',
+      address: {
+        line1: 'KRA-113, Kedaram Nagar',
+        line2: 'Pattom',
+        city: 'Trivandrum',
+        state: 'Kerala',
+        pincode: '695004'
+      },
+      gstin: '32AAGCV9195E1Z2',
+      contactPhone: '+91 9562819995',
+      contactEmail: 'info@vamsvetconsultancy.com'
+    };
+    
+    printGSTInvoice(invoice, customer, businessProfile);
+  };
+
+  const handleDownloadGSTInvoice = async (invoice: Invoice) => {
+    const customer = customers.find(c => c.id === invoice.customer_id);
+    if (!customer) {
+      toast.error('Customer not found');
+      return;
+    }
+    
+    const businessProfile = {
+      displayName: 'VAMS Veterinary Consultancy Private Limited',
+      address: {
+        line1: 'KRA-113, Kedaram Nagar',
+        line2: 'Pattom',
+        city: 'Trivandrum',
+        state: 'Kerala',
+        pincode: '695004'
+      },
+      gstin: '32AAGCV9195E1Z2',
+      contactPhone: '+91 9562819995',
+      contactEmail: 'info@vamsvetconsultancy.com'
+    };
+    
+    try {
+      await downloadGSTInvoice(invoice, customer, businessProfile);
+      toast.success('GST Invoice downloaded successfully');
+    } catch (error) {
+      console.error('Error downloading GST invoice:', error);
+      toast.error('Failed to download GST invoice');
+    }
   };
 
   const handleOpenReceiptModal = () => {

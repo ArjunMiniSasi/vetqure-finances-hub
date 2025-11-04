@@ -61,6 +61,8 @@ export interface Invoice {
     customer_gst_number?: string; // Customer GST number
     customer_state?: string; // Customer state
     gst_type: 'intra_state' | 'inter_state'; // CGST+SGST or IGST
+    // Invoice Prefix
+    invoice_prefix?: string; // Prefix for invoice number (VAMS or VQ, default: VQ)
     taxable_amount: number; // Total before tax
     cgst_amount: number; // CGST amount (9% for intra-state)
     sgst_amount: number; // SGST amount (9% for intra-state)
@@ -160,6 +162,22 @@ export const generateStableId = (): string => {
     });
 };
 
+// Helper to convert invoice number to Firestore-safe document ID
+// Replaces slashes with dashes since Firestore document IDs cannot contain slashes
+export const invoiceNumberToDocId = (invoiceNumber: string): string => {
+    return invoiceNumber.replace(/\//g, '-');
+};
+
+// Helper to convert document ID back to invoice number format (if needed)
+// Replaces dashes with slashes
+export const docIdToInvoiceNumber = (docId: string): string => {
+    // Only convert if it looks like our format (contains dashes in expected pattern)
+    if (docId.includes('-') && (docId.startsWith('VAMS-') || docId.startsWith('VQ-'))) {
+        return docId.replace(/-/g, '/');
+    }
+    return docId;
+};
+
 // Helper to generate custom invoice ID
 export const generateCustomInvoiceId = async (): Promise<string> => {
     const today = new Date();
@@ -185,8 +203,8 @@ export const generateCustomInvoiceId = async (): Promise<string> => {
 export const addInvoice = async (invoiceData: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
     try {
         const now = Timestamp.now();
-        const stableId = generateStableId(); // Generate stable UUID
-        const invoiceNumber = await generateInvoiceNumber(); // Generate invoice number
+        const prefix = invoiceData.invoice_prefix || 'VQ'; // Default to VQ
+        const invoiceNumber = await generateInvoiceNumber(prefix); // Generate invoice number
 
         // Calculate GST if not already calculated
         let gstData = {};
@@ -197,13 +215,13 @@ export const addInvoice = async (invoiceData: Omit<Invoice, 'id' | 'createdAt' |
 
         const invoiceWithTimestamps = {
             ...invoiceData,
-            document_id: stableId, // Stable UUID
+            document_id: invoiceNumber, // Invoice number is the document ID
             invoice_number: invoiceNumber, // New field for invoice number
             invoice_id: invoiceNumber, // Keep for backward compatibility
             original_invoice_number: invoiceNumber, // First invoice number
             version: 1, // First version
             is_latest: true, // This is the latest version
-            company_gst_number: '32AABCV1234A1Z5', // Fixed company GST number
+            company_gst_number: '32AAGCV9195E1Z2', // Fixed company GST number
             date_created: invoiceData.date_created,
             due_date: invoiceData.due_date,
             createdAt: now,
@@ -211,9 +229,12 @@ export const addInvoice = async (invoiceData: Omit<Invoice, 'id' | 'createdAt' |
             ...gstData
         };
 
-        // Use stable ID as document ID
-        await setDoc(doc(db, 'customer_invoices', stableId), invoiceWithTimestamps);
-        return stableId; // Return stable ID instead of invoice number
+        // Convert invoice number to Firestore-safe document ID (replace / with -)
+        const documentId = invoiceNumberToDocId(invoiceNumber);
+
+        // Use invoice number as document ID (with slashes replaced by dashes)
+        await setDoc(doc(db, 'customer_invoices', documentId), invoiceWithTimestamps);
+        return invoiceNumber; // Return original invoice number format
     } catch (error) {
         console.error('Error adding invoice:', error);
         throw error;
@@ -310,30 +331,69 @@ export const getAllReceipts = async (): Promise<Receipt[]> => {
 };
 
 // Invoice number generation
-export const generateInvoiceNumber = async (): Promise<string> => {
+// New format: {PREFIX}/{YEAR}/{MONTH}/{SEQUENCE}
+// Example: VQ/2526/11/001 or VAMS/2526/11/002
+export const generateInvoiceNumber = async (prefix: string = 'VQ'): Promise<string> => {
     try {
-        const currentYear = new Date().getFullYear();
-        const financialYear = `${currentYear}-${(currentYear + 1).toString().slice(-2)}`;
+        const today = new Date();
+        const currentYear = today.getFullYear();
 
-        // Get the latest invoice number for this financial year
+        // Financial year format: last 2 digits of start + last 2 digits of end
+        // e.g., 2025-26 becomes 2526
+        const financialYearStr = `${currentYear.toString().slice(-2)}${(currentYear + 1).toString().slice(-2)}`;
+
+        // Current month (two digits)
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+
+        // Calculate financial year start date (April 1)
+        const financialYearStart = new Date(currentYear, 3, 1); // April = month 3 (0-indexed)
+        const financialYearEnd = new Date(currentYear + 1, 2, 31, 23, 59, 59); // March 31
+
+        // Adjust if current date is before April (use previous financial year)
+        let startDate = financialYearStart;
+        let endDate = financialYearEnd;
+        let yearStr = financialYearStr;
+
+        if (today < financialYearStart) {
+            // Current date is before April, use previous financial year
+            startDate = new Date(currentYear - 1, 3, 1);
+            endDate = new Date(currentYear, 2, 31, 23, 59, 59);
+            yearStr = `${(currentYear - 1).toString().slice(-2)}${currentYear.toString().slice(-2)}`;
+        }
+
+        // Get all invoices for this financial year with the same prefix
+        // Query by date_created to find invoices in the financial year
         const q = query(
             collection(db, 'customer_invoices'),
-            where('invoice_id', '>=', `VAMS/${financialYear}/000`),
-            where('invoice_id', '<=', `VAMS/${financialYear}/999`),
-            orderBy('invoice_id', 'desc'),
-            limit(1)
+            where('date_created', '>=', Timestamp.fromDate(startDate)),
+            where('date_created', '<=', Timestamp.fromDate(endDate)),
+            orderBy('date_created', 'desc')
         );
 
         const querySnapshot = await getDocs(q);
-        let nextNumber = 1;
+        let maxSequence = 0;
 
-        if (!querySnapshot.empty) {
-            const lastInvoice = querySnapshot.docs[0].data() as Invoice;
-            const lastNumber = parseInt(lastInvoice.invoice_id?.split('/')[2] || '0');
-            nextNumber = lastNumber + 1;
-        }
+        // Parse all invoice numbers to find the highest sequence for this prefix
+        querySnapshot.docs.forEach(doc => {
+            const invoice = doc.data() as Invoice;
+            const invoiceNumber = invoice.invoice_number || invoice.invoice_id || '';
 
-        return `VAMS/${financialYear}/${nextNumber.toString().padStart(3, '0')}`;
+            // Check if invoice matches the prefix format and extract sequence
+            // Format: PREFIX/YEAR/MONTH/SEQUENCE
+            if (invoiceNumber.startsWith(prefix + '/')) {
+                const parts = invoiceNumber.split('/');
+                if (parts.length === 4 && parts[0] === prefix && parts[1] === yearStr) {
+                    const sequence = parseInt(parts[3] || '0');
+                    if (!isNaN(sequence) && sequence > maxSequence) {
+                        maxSequence = sequence;
+                    }
+                }
+            }
+        });
+
+        const nextSequence = maxSequence + 1;
+
+        return `${prefix}/${yearStr}/${month}/${nextSequence.toString().padStart(3, '0')}`;
     } catch (error) {
         console.error('Error generating invoice number:', error);
         throw error;
@@ -372,13 +432,20 @@ export const calculateGST = (taxableAmount: number, customerState: string, compa
 // Update invoice function
 export const updateInvoice = async (documentId: string, invoiceData: Partial<Invoice>) => {
     try {
-        const invoiceRef = doc(db, 'customer_invoices', documentId);
+        // Convert documentId to Firestore-safe format if it contains slashes
+        const safeDocumentId = documentId.includes('/') ? invoiceNumberToDocId(documentId) : documentId;
+        const invoiceRef = doc(db, 'customer_invoices', safeDocumentId);
 
         // Generate new invoice number for edited invoices (GST compliance)
-        const newInvoiceNumber = await generateInvoiceNumber();
+        // Preserve the prefix from existing invoice or default to VQ
+        const existingInvoice = (await getDoc(invoiceRef)).data() as Invoice;
+        const prefix = existingInvoice?.invoice_prefix || invoiceData.invoice_prefix || 'VQ';
+        const newInvoiceNumber = await generateInvoiceNumber(prefix);
+        const newDocumentId = invoiceNumberToDocId(newInvoiceNumber);
 
         const updateData = {
             ...invoiceData,
+            document_id: newInvoiceNumber, // Store original format with slashes
             invoice_number: newInvoiceNumber, // Update invoice number
             invoice_id: newInvoiceNumber, // Keep for backward compatibility
             version: (invoiceData.version || 1) + 1, // Increment version
@@ -386,8 +453,28 @@ export const updateInvoice = async (documentId: string, invoiceData: Partial<Inv
             updatedAt: Timestamp.now()
         };
 
-        await updateDoc(invoiceRef, updateData);
-        return { id: documentId, ...updateData };
+        // If invoice number changed, create new document with new invoice number as ID
+        // and mark old document as not latest
+        if (safeDocumentId !== newDocumentId) {
+            // Mark old document as not latest
+            await updateDoc(invoiceRef, {
+                is_latest: false,
+                updatedAt: Timestamp.now()
+            });
+
+            // Create new document with new invoice number as document ID (Firestore-safe format)
+            const newInvoiceRef = doc(db, 'customer_invoices', newDocumentId);
+            await setDoc(newInvoiceRef, {
+                ...existingInvoice,
+                ...updateData
+            });
+
+            return { id: newInvoiceNumber, ...updateData };
+        } else {
+            // Invoice number didn't change, just update the document
+            await updateDoc(invoiceRef, updateData);
+            return { id: newInvoiceNumber, ...updateData };
+        }
     } catch (error) {
         console.error('Error updating invoice:', error);
         throw error;
@@ -396,7 +483,9 @@ export const updateInvoice = async (documentId: string, invoiceData: Partial<Inv
 
 export const updateInvoiceStatus = async (invoiceId: string, status: 'pending' | 'completed' | 'cancelled') => {
     try {
-        const invoiceRef = doc(db, 'customer_invoices', invoiceId);
+        // Convert invoice ID to Firestore-safe format if it contains slashes
+        const safeInvoiceId = invoiceId.includes('/') ? invoiceNumberToDocId(invoiceId) : invoiceId;
+        const invoiceRef = doc(db, 'customer_invoices', safeInvoiceId);
         await updateDoc(invoiceRef, { status, updatedAt: Timestamp.now() });
     } catch (error) {
         console.error('Error updating invoice status:', error);
@@ -416,7 +505,9 @@ export const updateCustomerRenewalDate = async (customerId: string, newRenewalDa
 
 export const deleteInvoice = async (invoiceId: string) => {
     try {
-        await deleteDoc(doc(db, 'customer_invoices', invoiceId));
+        // Convert invoice ID to Firestore-safe format if it contains slashes
+        const safeInvoiceId = invoiceId.includes('/') ? invoiceNumberToDocId(invoiceId) : invoiceId;
+        await deleteDoc(doc(db, 'customer_invoices', safeInvoiceId));
     } catch (error) {
         console.error('Error deleting invoice:', error);
         throw error;
@@ -659,11 +750,15 @@ export const migrateExistingInvoices = async (): Promise<void> => {
             // Check if invoice already has stable ID structure
             if (!invoice.document_id && invoice.invoice_id) {
                 // This is an old invoice that needs migration
-                const invoiceRef = doc(db, 'customer_invoices', invoice.invoice_id);
+                // Convert invoice_id to Firestore-safe format if it contains slashes
+                const safeInvoiceId = invoice.invoice_id.includes('/')
+                    ? invoiceNumberToDocId(invoice.invoice_id)
+                    : invoice.invoice_id;
+                const invoiceRef = doc(db, 'customer_invoices', safeInvoiceId);
 
                 await updateDoc(invoiceRef, {
-                    document_id: invoice.invoice_id, // Use existing invoice_id as stable ID
-                    invoice_number: invoice.invoice_id, // Add new field
+                    document_id: invoice.invoice_id, // Store original format with slashes
+                    invoice_number: invoice.invoice_id, // Add new field with original format
                     original_invoice_number: invoice.invoice_id, // First invoice number
                     version: 1, // First version
                     is_latest: true, // This is the latest version

@@ -29,7 +29,7 @@ interface GeminiError {
 
 class GeminiService {
     private apiKey: string;
-    private baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent';
+    private baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';
     private retryAttempts = 3;
     private baseDelay = 1000; // 1 second
 

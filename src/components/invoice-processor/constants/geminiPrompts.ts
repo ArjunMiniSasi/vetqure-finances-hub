@@ -55,6 +55,15 @@ EXTRACTION GUIDELINES:
 - GST Number: Look for GSTIN format (22AAAAA0000A1Z5)
 - Contact Info: Extract email and phone numbers
 
+TAX AMOUNT EXTRACTION (CRITICAL):
+- Look for tax-related terms: "GST", "Integrated GST", "Tax", "CGST", "SGST", "IGST", "VAT", "Service Tax", "Tax Amount", "Total Tax"
+- Extract numeric values associated with these terms
+- Handle formats like: "GST: ₹1,000", "Tax Amount: 1000", "Integrated GST 18%: 1000", "Total Tax: ₹1,500"
+- If only percentage is given (e.g., "GST 18%"), calculate tax from subtotal
+- If multiple tax components exist (CGST + SGST), sum them for total tax
+- If no tax amount is found, set taxAmount to 0 (not null)
+- Priority: Look for "Total Tax", "Tax Amount", "GST Amount" first, then individual components
+
 CONFIDENCE SCORING:
 - 0.9-1.0: Very clear and unambiguous
 - 0.7-0.8: Clear but some ambiguity

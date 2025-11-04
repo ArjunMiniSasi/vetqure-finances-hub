@@ -43,7 +43,7 @@ const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ invoice, customer }
       <div style={{ display: 'flex', alignItems: 'flex-start', borderBottom: '1px solid #eee', paddingBottom: 24, marginBottom: 64 }}>
         <img src="/assets/vetqure.png" alt="Vetqure Logo" style={{ height: 56, marginRight: 32 }} />
         <div style={{ textAlign: 'left' }}>
-          <div style={{ fontWeight: 700, fontSize: '2rem', color: '#222', marginBottom: 2 }}>VAMS Veterinary Consultancy Pvt Ltd</div>
+          <div style={{ fontWeight: 700, fontSize: '2rem', color: '#222', marginBottom: 2 }}>VAMS Veterinary Consultancy Private Limited</div>
           <div style={{ fontSize: 15, color: '#888' }}>KRA-113, Kedaram Nagar, Pattom, Trivandrum</div>
         </div>
       </div>
@@ -94,7 +94,7 @@ const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ invoice, customer }
       {/* Notes and Footer */}
       <div style={{ marginBottom: 16, color: '#888', fontSize: 13 }}><b>Notes:</b> {invoice.notes || '-'}</div>
       <div style={{ color: '#888', fontSize: 12, borderTop: '1px solid #eee', marginTop: 32, paddingTop: 16, textAlign: 'center' }}>
-        Thank you for your business!<br />VAMS Veterinary Consultancy Pvt Ltd
+        Thank you for your business!<br />VAMS Veterinary Consultancy Private Limited
       </div>
     </div>
   );

@@ -211,8 +211,12 @@ export class GeminiInvoiceService {
                 result.subtotal = parsed.subtotal;
             }
 
-            if (parsed.taxAmount && typeof parsed.taxAmount === 'number') {
+            // Enhanced tax amount handling - default to 0 if not found
+            if (parsed.taxAmount && typeof parsed.taxAmount === 'number' && parsed.taxAmount >= 0) {
                 result.taxAmount = parsed.taxAmount;
+            } else {
+                // If no tax amount found, set to 0 instead of null
+                result.taxAmount = 0;
             }
 
             if (parsed.currency && typeof parsed.currency === 'string') {

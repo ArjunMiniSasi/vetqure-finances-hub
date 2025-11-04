@@ -23,6 +23,7 @@ const baseSchema = z.object({
   serviceEndDate: z.date().optional(),
   currency: z.enum(currencyOptions),
   amount: z.number().min(1, 'Amount must be greater than 0'),
+  taxAmount: z.number().min(0, 'Tax amount must be 0 or greater').optional(),
   invoiceFile: z.any(),
   receiptFile: z.any().optional(),
 });
@@ -66,6 +67,7 @@ const VendorInvoiceForm: React.FC<VendorInvoiceFormProps> = ({ vendors, onSubmit
       serviceEndDate: undefined,
       currency: 'INR',
       amount: 0,
+      taxAmount: 0,
       invoiceFile: undefined,
       receiptFile: undefined,
     },
@@ -246,6 +248,28 @@ const VendorInvoiceForm: React.FC<VendorInvoiceFormProps> = ({ vendors, onSubmit
                   </FormItem>
                 )}
               />
+            )}
+          />
+
+          {/* Tax Amount */}
+          <FormField
+            control={form.control}
+            name="taxAmount"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Tax Amount (Optional)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    placeholder="Enter tax amount"
+                    value={field.value || ''}
+                    onChange={e => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
             )}
           />
 

@@ -122,7 +122,7 @@ const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose, onSave
                 value={formData.gstNumber}
                 onChange={(e) => handleInputChange('gstNumber', e.target.value)}
                 className="mt-1 h-12"
-                placeholder="32AABCV1234A1Z5"
+                placeholder="32AAGCV9195E1Z2"
                 required={formData.type === 'business'}
               />
             </div>

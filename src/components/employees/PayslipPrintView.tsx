@@ -54,7 +54,7 @@ const PayslipPrintView: React.FC<PayslipPrintViewProps> = ({ employee, payslip }
       <div style={{ display: 'flex', alignItems: 'flex-start', borderBottom: '1px solid #eee', paddingBottom: 24, marginBottom: 40 }}>
         <img src={LOGO_URL} alt="Vetqure Logo" style={{ height: 56, marginRight: 32 }} />
         <div style={{ textAlign: 'left' }}>
-          <div style={{ fontWeight: 700, fontSize: '2rem', color: PRIMARY_COLOR, marginBottom: 2 }}>VAMS Veterinary Consultancy Pvt Ltd</div>
+          <div style={{ fontWeight: 700, fontSize: '2rem', color: PRIMARY_COLOR, marginBottom: 2 }}>VAMS Veterinary Consultancy Private Limited</div>
           <div style={{ fontSize: 15, color: '#888' }}>KRA-113, Kedaram Nagar, Pattom, Trivandrum</div>
         </div>
       </div>
@@ -129,7 +129,7 @@ const PayslipPrintView: React.FC<PayslipPrintViewProps> = ({ employee, payslip }
         </button>
       </div>
       <div style={{ color: '#888', fontSize: 12, borderTop: '1px solid #eee', marginTop: 32, paddingTop: 16, textAlign: 'center' }}>
-        This is a computer generated payslip and does not require a physical signature.<br />VAMS Veterinary Consultancy Pvt Ltd
+        This is a computer generated payslip and does not require a physical signature.<br />VAMS Veterinary Consultancy Private Limited
       </div>
     </div>
   );

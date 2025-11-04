@@ -327,6 +327,7 @@ const VendorInvoices: React.FC = () => {
         serviceEndDate: data.serviceEndDate ? Timestamp.fromDate(data.serviceEndDate) : null,
         currency: data.currency,
         amount: data.amount,
+        taxAmount: data.taxAmount || 0,
         invoiceUrl,
         receiptUrl,
         uploadStatus: invoiceUrl ? 'uploaded' : 'pending',
@@ -371,6 +372,7 @@ const VendorInvoices: React.FC = () => {
         serviceEndDate: data.serviceEndDate ? Timestamp.fromDate(data.serviceEndDate) : null,
         currency: data.currency,
         amount: data.amount,
+        taxAmount: data.taxAmount || 0,
         invoiceUrl,
         receiptUrl,
         // ...other fields
@@ -629,6 +631,9 @@ const VendorInvoices: React.FC = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Total
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tax
+                    </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
@@ -637,7 +642,7 @@ const VendorInvoices: React.FC = () => {
                 <tbody className="divide-y divide-gray-200">
                   {filteredInvoices.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-4 text-center text-sm text-gray-500">
+                      <td colSpan={7} className="px-6 py-4 text-center text-sm text-gray-500">
                         {debouncedSearchTerm.trim() !== '' 
                           ? `No invoices found matching "${debouncedSearchTerm}"`
                           : 'No invoices found'
@@ -662,6 +667,11 @@ const VendorInvoices: React.FC = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900">
                             {invoice.amount ? `${currencySymbol(invoice.currency)}${invoice.amount.toFixed(2)}` : '-'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500">
+                            {invoice.taxAmount ? `${currencySymbol(invoice.currency)}${invoice.taxAmount.toFixed(2)}` : '₹0.00'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex items-center gap-2 justify-end">
@@ -877,6 +887,10 @@ const VendorInvoices: React.FC = () => {
                   <div>
                     <div className="text-xs text-gray-500 mb-1">Amount</div>
                     <div className="font-medium text-gray-900 text-base">{currencySymbol(selectedInvoice.currency)}{selectedInvoice.amount?.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 mb-1">Tax Amount</div>
+                    <div className="font-medium text-gray-900 text-base">{currencySymbol(selectedInvoice.currency)}{(selectedInvoice.taxAmount || 0).toFixed(2)}</div>
                   </div>
                 </div>
                 <div className="p-6 flex flex-col md:flex-row gap-3 md:gap-4 items-start md:items-center bg-gray-50 rounded-b-lg">

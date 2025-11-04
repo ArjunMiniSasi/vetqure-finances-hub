@@ -40,6 +40,7 @@ export interface VendorInvoice {
     serviceEndDate?: Date;
     currency: Currency;
     amount: number;
+    taxAmount?: number;
     invoiceUrl?: string;
     receiptUrl?: string;
     uploadStatus: UploadStatus;

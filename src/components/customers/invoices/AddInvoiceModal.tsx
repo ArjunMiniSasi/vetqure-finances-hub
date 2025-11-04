@@ -37,8 +37,10 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
     items: [] as InvoiceItem[],
     notes: '',
     currency: 'INR',
+    // Invoice Prefix
+    invoice_prefix: 'VQ' as 'VAMS' | 'VQ',
     // GST Fields
-    company_gst_number: '32AABCV1234A1Z5',
+    company_gst_number: '32AAGCV9195E1Z2',
     customer_gst_number: '',
     customer_state: '',
     gst_type: 'intra_state' as 'intra_state' | 'inter_state',
@@ -117,7 +119,8 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
         items: [],
         notes: '',
         currency: 'INR',
-        company_gst_number: '32AABCV1234A1Z5',
+        invoice_prefix: 'VQ',
+        company_gst_number: '32AAGCV9195E1Z2',
         customer_gst_number: '',
         customer_state: '',
         gst_type: 'intra_state',
@@ -306,7 +309,20 @@ const AddInvoiceModal: React.FC<AddInvoiceModalProps> = ({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleAddInvoice} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="invoice_prefix">Invoice Prefix</Label>
+              <select
+                id="invoice_prefix"
+                className="w-full rounded-md border border-gray-300 px-3 py-2"
+                value={newInvoice.invoice_prefix}
+                onChange={e => setNewInvoice({ ...newInvoice, invoice_prefix: e.target.value as 'VAMS' | 'VQ' })}
+                required
+              >
+                <option value="VQ">VQ (Default)</option>
+                <option value="VAMS">VAMS</option>
+              </select>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="customer">Customer</Label>
               <div className="relative">

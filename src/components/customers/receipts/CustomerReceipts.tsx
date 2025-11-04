@@ -114,7 +114,7 @@ const CustomerReceipts: React.FC = () => {
               <div style="margin-bottom: 8px;"><span style="font-weight: 600;">Transaction Ref No</span><br>${receipt.reference_number}</div>
               <div style="margin-bottom: 8px;"><span style="font-weight: 600;">Date paid</span><br>${receipt.date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</div>
               <div style="margin-bottom: 8px;"><span style="font-weight: 600;">Payment method</span><br>${receipt.method ? receipt.method.charAt(0).toUpperCase() + receipt.method.slice(1) : ''}</div>
-              <div style="margin-bottom: 8px; font-weight: 600;">VAMS Veterinary Consultancy Pvt Ltd<br>KRA-113, Kedaram Nagar, Pattom<br>Trivandrum</div>
+              <div style="margin-bottom: 8px; font-weight: 600;">VAMS Veterinary Consultancy Private Limited<br>KRA-113, Kedaram Nagar, Pattom<br>Trivandrum</div>
             </div>
             <div style="flex: 1; min-width: 180px; font-size: 14px;">
               <div style="font-weight: 600; margin-bottom: 8px;">Bill to</div>

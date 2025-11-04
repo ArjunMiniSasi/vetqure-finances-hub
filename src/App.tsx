@@ -18,6 +18,7 @@ import EmployeeList from './components/employees/EmployeeList';
 import { TestDueDateAlerts } from './components/TestDueDateAlerts';
 import { DebugNotificationSystem } from './components/DebugNotificationSystem';
 import { MigrationRunner } from './components/MigrationRunner';
+import { GeminiTest } from './components/GeminiTest';
 
 const App: React.FC = () => {
   return (
@@ -53,6 +54,9 @@ const App: React.FC = () => {
             
             {/* Migration route - temporary */}
             <Route path="/migration" element={<MigrationRunner />} />
+            
+            {/* Gemini test route - temporary */}
+            <Route path="/gemini-test" element={<GeminiTest />} />
           </Route>
 
           {/* Redirect root to dashboard */}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Invoice, Customer } from '@/services/firestoreService';
+import { Eye, Edit, Trash2 } from 'lucide-react';
 
 interface InvoiceTableProps {
   invoices: Invoice[];
@@ -74,22 +75,25 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({ invoices, customers, search
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <div className="flex justify-end space-x-2">
                   <button
-                    className="text-blue-600 hover:text-blue-900 font-medium"
+                    className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors duration-200"
                     onClick={() => onViewDetails(invoice)}
+                    title="View Details"
                   >
-                    View
+                    <Eye className="h-4 w-4" />
                   </button>
                   <button
-                    className="text-green-600 hover:text-green-900 font-medium"
+                    className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded-lg transition-colors duration-200"
                     onClick={() => onEditInvoice(invoice)}
+                    title="Edit Invoice"
                   >
-                    Edit
+                    <Edit className="h-4 w-4" />
                   </button>
                   <button
-                    className="text-red-600 hover:text-red-900 font-medium"
+                    className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors duration-200"
                     onClick={() => onDeleteInvoice(invoice)}
+                    title="Delete Invoice"
                   >
-                    Delete
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               </td>

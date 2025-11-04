@@ -59,7 +59,7 @@ export function printInvoiceHtml(invoice: any, customer: any) {
         <div class="header-block">
           <img src="/assets/vetqure.png" alt="Vetqure Logo" />
           <div class="company-details">
-            <div class="company-name">VAMS Veterinary Consultancy Pvt Ltd</div>
+            <div class="company-name">VAMS Veterinary Consultancy Private Limited</div>
             <div class="company-address">KRA-113, Kedaram Nagar, Pattom, Trivandrum</div>
           </div>
         </div>
@@ -110,7 +110,7 @@ export function printInvoiceHtml(invoice: any, customer: any) {
           This is an electronically generated invoice and does not require a signature.
         </div>
         <div class="footer">
-          Thank you for your business!<br />VAMS Veterinary Consultancy Pvt Ltd
+          Thank you for your business!<br />VAMS Veterinary Consultancy Private Limited
         </div>
       </div>
       <script>window.onload = function() { window.print(); };</script>

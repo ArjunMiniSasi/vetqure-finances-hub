@@ -42,7 +42,7 @@ const payslipHtmlTemplate = ({ employee, payslip }) => `
     <div style="display: flex; align-items: flex-start; border-bottom: 1px solid #eee; padding-bottom: 24px; margin-bottom: 40px;">
       <img src="${LOGO_URL}" alt="Vetqure Logo" style="height: 56px; margin-right: 32px;" />
       <div style="text-align: left;">
-        <div style="font-weight: 700; font-size: 2rem; color: ${PRIMARY_COLOR}; margin-bottom: 2px;">VAMS Veterinary Consultancy Pvt Ltd</div>
+        <div style="font-weight: 700; font-size: 2rem; color: ${PRIMARY_COLOR}; margin-bottom: 2px;">VAMS Veterinary Consultancy Private Limited</div>
         <div style="font-size: 15px; color: #888;">KRA-113, Kedaram Nagar, Pattom, Trivandrum</div>
       </div>
     </div>
@@ -107,7 +107,7 @@ const payslipHtmlTemplate = ({ employee, payslip }) => `
       </div>
     </div>
     <div style="color: #888; font-size: 12px; border-top: 1px solid #eee; margin-top: 32px; padding-top: 16px; text-align: center;">
-      This is a computer generated payslip and does not require a physical signature.<br />VAMS Veterinary Consultancy Pvt Ltd
+      This is a computer generated payslip and does not require a physical signature.<br />VAMS Veterinary Consultancy Private Limited
     </div>
   </div>
 `;

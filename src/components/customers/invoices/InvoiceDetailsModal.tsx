@@ -2,6 +2,8 @@ import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Invoice, Customer } from '@/services/firestoreService';
+import { printGSTInvoice, downloadGSTInvoice } from '@/utils/gstInvoiceUtils';
+import { toast } from 'react-hot-toast';
 
 interface InvoiceDetailsModalProps {
   open: boolean;
@@ -24,6 +26,58 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   onPrint,
   onGenerateReceipt,
 }) => {
+  const handlePrintGSTInvoice = () => {
+    if (!invoice || !customer) {
+      toast.error('Invoice or customer data not available');
+      return;
+    }
+    
+    const businessProfile = {
+      displayName: 'VAMS Veterinary Consultancy Private Limited',
+      address: {
+        line1: 'KRA-113, Kedaram Nagar',
+        line2: 'Pattom',
+        city: 'Trivandrum',
+        state: 'Kerala',
+        pincode: '695004'
+      },
+      gstin: '32AAGCV9195E1Z2',
+      contactPhone: '+91 9562819995',
+      contactEmail: 'info@vamsvetconsultancy.com'
+    };
+    
+    printGSTInvoice(invoice, customer, businessProfile);
+  };
+
+  const handleDownloadGSTInvoice = async () => {
+    if (!invoice || !customer) {
+      toast.error('Invoice or customer data not available');
+      return;
+    }
+    
+    const businessProfile = {
+      displayName: 'VAMS Veterinary Consultancy Private Limited',
+      address: {
+        line1: 'KRA-113, Kedaram Nagar',
+        line2: 'Pattom',
+        city: 'Trivandrum',
+        state: 'Kerala',
+        pincode: '695004'
+      },
+      gstin: '32AAGCV9195E1Z2',
+      contactPhone: '+91 9562819995',
+      contactEmail: 'info@vamsvetconsultancy.com'
+    };
+    
+    try {
+      await downloadGSTInvoice(invoice, customer, businessProfile);
+      toast.success('GST Invoice downloaded successfully');
+    } catch (error) {
+      console.error('Error downloading GST invoice:', error);
+      toast.error('Failed to download GST invoice');
+    }
+  };
+
   if (!invoice || !customer) return null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -77,10 +131,12 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             <div>
               <strong>Total:</strong> {invoice.total} {invoice.currency}
             </div>
-            <div className="flex gap-2 mt-4">
+            <div className="flex flex-wrap gap-2 mt-4">
               <Button type="button" onClick={onSendEmail} className="bg-blue-600 text-white">Send Email</Button>
               <Button type="button" onClick={onPrint} className="bg-indigo-600 text-white">Print Invoice</Button>
-              <Button type="button" onClick={onGenerateReceipt} className="bg-purple-600 text-white">Generate Receipt</Button>
+              <Button type="button" onClick={handlePrintGSTInvoice} className="bg-purple-600 text-white">Print GST Invoice</Button>
+              <Button type="button" onClick={handleDownloadGSTInvoice} className="bg-green-600 text-white">Download GST PDF</Button>
+              <Button type="button" onClick={onGenerateReceipt} className="bg-orange-600 text-white">Generate Receipt</Button>
             </div>
           </div>
         )}

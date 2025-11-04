@@ -39,10 +39,12 @@ const EditInvoiceModal: React.FC<EditInvoiceModalProps> = ({
     items: [] as InvoiceItem[],
     notes: '',
     currency: 'INR',
+    // Invoice Prefix
+    invoice_prefix: 'VQ' as 'VAMS' | 'VQ',
     // GST Fields
-    company_gst_number: '32AABCV1234A1Z5',
+    company_gst_number: '32AAGCV9195E1Z2',
     customer_gst_number: '',
-    customer_state: '',
+    customer_state: 'Kerala',
     gst_type: 'intra_state' as 'intra_state' | 'inter_state',
     taxable_amount: 0,
     cgst_percentage: 9,
@@ -107,6 +109,19 @@ const EditInvoiceModal: React.FC<EditInvoiceModalProps> = ({
       const totalGST = recalculatedItems.reduce((sum, item) => sum + item.tax_amount, 0);
       const grandTotal = taxableAmount + totalGST;
 
+      // Extract prefix from existing invoice number or use invoice_prefix field
+      let invoicePrefix: 'VAMS' | 'VQ' = 'VQ';
+      if (invoice.invoice_prefix) {
+        invoicePrefix = invoice.invoice_prefix as 'VAMS' | 'VQ';
+      } else if (invoice.invoice_number || invoice.invoice_id) {
+        const invoiceNum = invoice.invoice_number || invoice.invoice_id || '';
+        if (invoiceNum.startsWith('VAMS/')) {
+          invoicePrefix = 'VAMS';
+        } else if (invoiceNum.startsWith('VQ/')) {
+          invoicePrefix = 'VQ';
+        }
+      }
+
       setEditedInvoice({
         customer_id: invoice.customer_id || '',
         customer_name: invoice.customer_name || '',
@@ -117,9 +132,10 @@ const EditInvoiceModal: React.FC<EditInvoiceModalProps> = ({
         items: recalculatedItems,
         notes: invoice.notes || '',
         currency: invoice.currency || 'INR',
-        company_gst_number: invoice.company_gst_number || '32AABCV1234A1Z5',
+        invoice_prefix: invoicePrefix,
+        company_gst_number: invoice.company_gst_number || '32AAGCV9195E1Z2',
         customer_gst_number: invoice.customer_gst_number || '',
-        customer_state: invoice.customer_state || '',
+        customer_state: invoice.customer_state || 'Kerala',
         gst_type: invoice.gst_type || 'intra_state',
         taxable_amount: taxableAmount,
         cgst_percentage: invoice.cgst_percentage || 9,
@@ -150,8 +166,8 @@ const EditInvoiceModal: React.FC<EditInvoiceModalProps> = ({
         return;
       }
 
-      // Update the invoice in Firestore using stable document ID
-      const documentId = invoice.document_id || invoice.id; // Use stable ID if available, fallback to old ID
+      // Update the invoice in Firestore using invoice number as document ID
+      const documentId = invoice.invoice_number || invoice.invoice_id || invoice.document_id || invoice.id; // Use invoice number as document ID
       await updateInvoice(documentId, {
         ...editedInvoice,
         date_created: editedInvoice.date_created,
@@ -161,6 +177,7 @@ const EditInvoiceModal: React.FC<EditInvoiceModalProps> = ({
         items: editedInvoice.items,
         notes: editedInvoice.notes,
         currency: editedInvoice.currency,
+        invoice_prefix: editedInvoice.invoice_prefix,
         company_gst_number: editedInvoice.company_gst_number,
         customer_gst_number: editedInvoice.customer_gst_number,
         customer_state: editedInvoice.customer_state,
@@ -308,6 +325,43 @@ const EditInvoiceModal: React.FC<EditInvoiceModalProps> = ({
     });
   };
 
+  // Helper to update GST percent fields with realtime totals
+  const updateGSTPercentages = (next: {
+    cgst_percentage?: number;
+    sgst_percentage?: number;
+    igst_percentage?: number;
+  }) => {
+    setEditedInvoice(prev => {
+      const cgstPct = next.cgst_percentage !== undefined ? next.cgst_percentage : (prev.cgst_percentage || 0);
+      const sgstPct = next.sgst_percentage !== undefined ? next.sgst_percentage : (prev.sgst_percentage || 0);
+      const igstPct = next.igst_percentage !== undefined ? next.igst_percentage : (prev.igst_percentage || 0);
+
+      const taxable = prev.taxable_amount || 0;
+      const cgstAmt = (taxable * (cgstPct || 0)) / 100;
+      const sgstAmt = (taxable * (sgstPct || 0)) / 100;
+      const igstAmt = (taxable * (igstPct || 0)) / 100;
+      const totalGST = cgstAmt + sgstAmt + igstAmt;
+      const grand = taxable + totalGST;
+
+      // Derive gst_type from state by default, but if igst is set > 0, prefer inter_state
+      const inferredType = igstPct > 0 ? 'inter_state' : (prev.customer_state === 'Kerala' ? 'intra_state' : 'inter_state');
+
+      return {
+        ...prev,
+        cgst_percentage: cgstPct,
+        sgst_percentage: sgstPct,
+        igst_percentage: igstPct,
+        cgst_amount: cgstAmt,
+        sgst_amount: sgstAmt,
+        igst_amount: igstAmt,
+        total_gst_amount: totalGST,
+        grand_total: grand,
+        total: grand,
+        gst_type: inferredType as 'intra_state' | 'inter_state',
+      };
+    });
+  };
+
   const handleCustomerInputFocus = () => {
     setCustomerDropdownOpen(true);
   };
@@ -350,7 +404,20 @@ const EditInvoiceModal: React.FC<EditInvoiceModalProps> = ({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleUpdateInvoice} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="invoice_prefix">Invoice Prefix</Label>
+              <select
+                id="invoice_prefix"
+                className="w-full rounded-md border border-gray-300 px-3 py-2"
+                value={editedInvoice.invoice_prefix}
+                onChange={e => setEditedInvoice({ ...editedInvoice, invoice_prefix: e.target.value as 'VAMS' | 'VQ' })}
+                required
+              >
+                <option value="VQ">VQ (Default)</option>
+                <option value="VAMS">VAMS</option>
+              </select>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="customer">Customer</Label>
               <div className="relative">
@@ -503,67 +570,90 @@ const EditInvoiceModal: React.FC<EditInvoiceModalProps> = ({
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* CGST Control */}
               <div className="space-y-2">
                 <Label htmlFor="cgst_percentage">CGST (%)</Label>
-                <div className="flex">
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="px-2 py-2 border rounded-md text-gray-700 hover:bg-gray-50"
+                    onClick={() => updateGSTPercentages({ cgst_percentage: Math.max(0, (editedInvoice.cgst_percentage || 0) - 0.5) })}
+                    aria-label="Decrease CGST"
+                  >
+                    −
+                  </button>
                   <Input
                     id="cgst_percentage"
                     type="number"
                     min="0"
                     max="100"
                     step="0.01"
-                    value={editedInvoice.cgst_percentage || 9}
-                    onChange={e => {
-                      const cgstPercentage = parseFloat(e.target.value) || 0;
-                      const cgstAmount = ((editedInvoice.taxable_amount || 0) * cgstPercentage) / 100;
-                      setEditedInvoice(prev => ({
-                        ...prev,
-                        cgst_percentage: cgstPercentage,
-                        cgst_amount: cgstAmount,
-                        total_gst_amount: cgstAmount + (prev.sgst_amount || 0) + (prev.igst_amount || 0),
-                        grand_total: (prev.taxable_amount || 0) + cgstAmount + (prev.sgst_amount || 0) + (prev.igst_amount || 0)
-                      }));
-                    }}
-                    className="text-green-600 font-medium rounded-r-none"
+                    value={editedInvoice.cgst_percentage || 0}
+                    onChange={e => updateGSTPercentages({ cgst_percentage: parseFloat(e.target.value) || 0 })}
+                    className="text-green-600 font-medium"
                   />
-                  <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-sm text-gray-600">%</span>
+                  <button
+                    type="button"
+                    className="px-2 py-2 border rounded-md text-gray-700 hover:bg-gray-50"
+                    onClick={() => updateGSTPercentages({ cgst_percentage: (editedInvoice.cgst_percentage || 0) + 0.5 })}
+                    aria-label="Increase CGST"
+                  >
+                    +
+                  </button>
                 </div>
                 <div className="text-xs text-gray-500">
                   Amount: {getCurrencySymbol(editedInvoice.currency)}{(editedInvoice.cgst_amount || 0).toFixed(2)}
                 </div>
               </div>
+
+              {/* SGST Control */}
               <div className="space-y-2">
                 <Label htmlFor="sgst_percentage">SGST (%)</Label>
-                <div className="flex">
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="px-2 py-2 border rounded-md text-gray-700 hover:bg-gray-50"
+                    onClick={() => updateGSTPercentages({ sgst_percentage: Math.max(0, (editedInvoice.sgst_percentage || 0) - 0.5) })}
+                    aria-label="Decrease SGST"
+                  >
+                    −
+                  </button>
                   <Input
                     id="sgst_percentage"
                     type="number"
                     min="0"
                     max="100"
                     step="0.01"
-                    value={editedInvoice.sgst_percentage || 9}
-                    onChange={e => {
-                      const sgstPercentage = parseFloat(e.target.value) || 0;
-                      const sgstAmount = ((editedInvoice.taxable_amount || 0) * sgstPercentage) / 100;
-                      setEditedInvoice(prev => ({
-                        ...prev,
-                        sgst_percentage: sgstPercentage,
-                        sgst_amount: sgstAmount,
-                        total_gst_amount: (prev.cgst_amount || 0) + sgstAmount + (prev.igst_amount || 0),
-                        grand_total: (prev.taxable_amount || 0) + (prev.cgst_amount || 0) + sgstAmount + (prev.igst_amount || 0)
-                      }));
-                    }}
-                    className="text-green-600 font-medium rounded-r-none"
+                    value={editedInvoice.sgst_percentage || 0}
+                    onChange={e => updateGSTPercentages({ sgst_percentage: parseFloat(e.target.value) || 0 })}
+                    className="text-green-600 font-medium"
                   />
-                  <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-sm text-gray-600">%</span>
+                  <button
+                    type="button"
+                    className="px-2 py-2 border rounded-md text-gray-700 hover:bg-gray-50"
+                    onClick={() => updateGSTPercentages({ sgst_percentage: (editedInvoice.sgst_percentage || 0) + 0.5 })}
+                    aria-label="Increase SGST"
+                  >
+                    +
+                  </button>
                 </div>
                 <div className="text-xs text-gray-500">
                   Amount: {getCurrencySymbol(editedInvoice.currency)}{(editedInvoice.sgst_amount || 0).toFixed(2)}
                 </div>
               </div>
+
+              {/* IGST Control */}
               <div className="space-y-2">
                 <Label htmlFor="igst_percentage">IGST (%)</Label>
-                <div className="flex">
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="px-2 py-2 border rounded-md text-gray-700 hover:bg-gray-50"
+                    onClick={() => updateGSTPercentages({ igst_percentage: Math.max(0, (editedInvoice.igst_percentage || 0) - 0.5) })}
+                    aria-label="Decrease IGST"
+                  >
+                    −
+                  </button>
                   <Input
                     id="igst_percentage"
                     type="number"
@@ -571,20 +661,17 @@ const EditInvoiceModal: React.FC<EditInvoiceModalProps> = ({
                     max="100"
                     step="0.01"
                     value={editedInvoice.igst_percentage || 0}
-                    onChange={e => {
-                      const igstPercentage = parseFloat(e.target.value) || 0;
-                      const igstAmount = ((editedInvoice.taxable_amount || 0) * igstPercentage) / 100;
-                      setEditedInvoice(prev => ({
-                        ...prev,
-                        igst_percentage: igstPercentage,
-                        igst_amount: igstAmount,
-                        total_gst_amount: (prev.cgst_amount || 0) + (prev.sgst_amount || 0) + igstAmount,
-                        grand_total: (prev.taxable_amount || 0) + (prev.cgst_amount || 0) + (prev.sgst_amount || 0) + igstAmount
-                      }));
-                    }}
-                    className="text-blue-600 font-medium rounded-r-none"
+                    onChange={e => updateGSTPercentages({ igst_percentage: parseFloat(e.target.value) || 0 })}
+                    className="text-blue-600 font-medium"
                   />
-                  <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-sm text-gray-600">%</span>
+                  <button
+                    type="button"
+                    className="px-2 py-2 border rounded-md text-gray-700 hover:bg-gray-50"
+                    onClick={() => updateGSTPercentages({ igst_percentage: (editedInvoice.igst_percentage || 0) + 0.5 })}
+                    aria-label="Increase IGST"
+                  >
+                    +
+                  </button>
                 </div>
                 <div className="text-xs text-gray-500">
                   Amount: {getCurrencySymbol(editedInvoice.currency)}{(editedInvoice.igst_amount || 0).toFixed(2)}

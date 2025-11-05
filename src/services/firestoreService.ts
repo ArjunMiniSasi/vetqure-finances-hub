@@ -337,29 +337,34 @@ export const generateInvoiceNumber = async (prefix: string = 'VQ'): Promise<stri
     try {
         const today = new Date();
         const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth(); // 0-indexed (0 = January, 3 = April)
 
-        // Financial year format: last 2 digits of start + last 2 digits of end
-        // e.g., 2025-26 becomes 2526
-        const financialYearStr = `${currentYear.toString().slice(-2)}${(currentYear + 1).toString().slice(-2)}`;
+        // Determine financial year based on current date
+        // Financial year runs from April 1 to March 31
+        // If current month is Jan-Mar (0-2), we're in the previous financial year
+        // If current month is Apr-Dec (3-11), we're in the current financial year
+        let financialYearStart: number;
+        let financialYearEnd: number;
+        let yearStr: string;
+
+        if (currentMonth < 3) {
+            // January-March: Use previous financial year (e.g., Jan 2025 = FY 2024-25 = 2425)
+            financialYearStart = currentYear - 1;
+            financialYearEnd = currentYear;
+            yearStr = `${(currentYear - 1).toString().slice(-2)}${currentYear.toString().slice(-2)}`;
+        } else {
+            // April-December: Use current financial year (e.g., Apr 2025 = FY 2025-26 = 2526)
+            financialYearStart = currentYear;
+            financialYearEnd = currentYear + 1;
+            yearStr = `${currentYear.toString().slice(-2)}${(currentYear + 1).toString().slice(-2)}`;
+        }
+
+        // Calculate financial year date range
+        const startDate = new Date(financialYearStart, 3, 1); // April 1 of start year
+        const endDate = new Date(financialYearEnd, 2, 31, 23, 59, 59); // March 31 of end year
 
         // Current month (two digits)
         const month = String(today.getMonth() + 1).padStart(2, '0');
-
-        // Calculate financial year start date (April 1)
-        const financialYearStart = new Date(currentYear, 3, 1); // April = month 3 (0-indexed)
-        const financialYearEnd = new Date(currentYear + 1, 2, 31, 23, 59, 59); // March 31
-
-        // Adjust if current date is before April (use previous financial year)
-        let startDate = financialYearStart;
-        let endDate = financialYearEnd;
-        let yearStr = financialYearStr;
-
-        if (today < financialYearStart) {
-            // Current date is before April, use previous financial year
-            startDate = new Date(currentYear - 1, 3, 1);
-            endDate = new Date(currentYear, 2, 31, 23, 59, 59);
-            yearStr = `${(currentYear - 1).toString().slice(-2)}${currentYear.toString().slice(-2)}`;
-        }
 
         // Get all invoices for this financial year with the same prefix
         // Query by date_created to find invoices in the financial year
